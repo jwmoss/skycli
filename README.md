@@ -46,8 +46,9 @@ Three ways to give `skycli` a token:
 skycli auth login --email you@example.com
 ```
 
-This performs a headless OAuth login, prompts for your password, and stores the
-returned refresh token plus device fingerprint. The password is not stored.
+This performs a headless OAuth login, prompts for your password with terminal
+echo disabled, and stores the returned refresh token plus device fingerprint.
+The password is not stored.
 
 For non-interactive use:
 
@@ -89,6 +90,8 @@ skycli auth set-token                  # paste "Bearer <token>" or "Basic <token
 skycli auth set-token --scheme basic   # explicit scheme if pasting a bare token
 ```
 
+Interactive token entry also disables terminal echo.
+
 ### Secret storage
 
 Secret backends:
@@ -117,7 +120,7 @@ flag/env tokens are used as-is.
 
 ```bash
 skycli auth login --email you@example.com
-skycli frames list                   # find your frame ID
+skycli frames                        # find your frame ID
 skycli frames set-default 5312425
 skycli doctor                        # verify token + connectivity
 skycli categories                    # show category IDs (one per kid + "Family")
@@ -134,6 +137,7 @@ skycli chores list
 
 # List for a date range, JSON output
 skycli --json chores list --after 2026-05-15 --before 2026-05-20
+skycli --json chores list --start-date 2026-05-15 --end-date 2026-05-20
 
 # Create one assigned chore
 skycli chores create \

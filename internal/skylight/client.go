@@ -220,6 +220,22 @@ type frameEnvelope struct {
 	Data Frame `json:"data"`
 }
 
+type framesEnvelope struct {
+	Data []Frame `json:"data"`
+}
+
+func (c *Client) ListFrames(ctx context.Context) ([]Frame, error) {
+	data, err := c.Do(ctx, http.MethodGet, "/api/frames", nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	var env framesEnvelope
+	if err := json.Unmarshal(data, &env); err != nil {
+		return nil, err
+	}
+	return env.Data, nil
+}
+
 func (c *Client) GetFrame(ctx context.Context, frameID int64) (*Frame, error) {
 	data, err := c.Do(ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d", frameID), nil, nil)
 	if err != nil {

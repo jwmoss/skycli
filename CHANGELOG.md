@@ -2,6 +2,19 @@
 
 All notable changes to `skycli` will be documented in this file.
 
+## v0.1.1 - 2026-05-18
+
+### Fixed
+
+- Hide interactive password and token entry in the terminal so pasted secrets do
+  not echo back in plaintext.
+- Make `skycli frames` list available frames by default, so users can discover
+  frame IDs before setting a default.
+- Improve missing-frame errors with the exact discovery and default-frame
+  commands to run next.
+- Add `chores list --start-date` and `--end-date` aliases for the existing
+  `--after` and `--before` filters.
+
 ## v0.1.0 - 2026-05-18
 
 Initial release of `skycli`, an unofficial CLI for the Skylight Calendar

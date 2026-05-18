@@ -53,6 +53,8 @@ func choresList(rc *runCtx, args []string) int {
 	date := fs.String("date", "", "single date (YYYY-MM-DD); shorthand for --after & --before; default: today")
 	after := fs.String("after", "", "filter after date (YYYY-MM-DD)")
 	before := fs.String("before", "", "filter before date (YYYY-MM-DD)")
+	startDate := fs.String("start-date", "", "alias for --after")
+	endDate := fs.String("end-date", "", "alias for --before")
 	status := fs.String("status", "", "filter by status (pending | complete | skipped)")
 	assignee := fs.String("assignee-id", "", "filter by assignee/category ID")
 	includeLate := fs.Bool("include-late", true, "include overdue chores")
@@ -61,6 +63,18 @@ func choresList(rc *runCtx, args []string) int {
 	linked := fs.Bool("linked-to-profile", false, "only chores linked to a profile category")
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
+	}
+	if *after != "" && *startDate != "" && *after != *startDate {
+		return usage(rc, "choose only one of --after or --start-date")
+	}
+	if *before != "" && *endDate != "" && *before != *endDate {
+		return usage(rc, "choose only one of --before or --end-date")
+	}
+	if *after == "" {
+		*after = *startDate
+	}
+	if *before == "" {
+		*before = *endDate
 	}
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {

@@ -11,6 +11,16 @@ import (
 
 	"github.com/jwmoss/skycli/internal/config"
 	"github.com/jwmoss/skycli/internal/skylight"
+	"golang.org/x/term"
+)
+
+type fdReader interface {
+	Fd() uintptr
+}
+
+var (
+	stdinIsTerminal    = term.IsTerminal
+	readTerminalSecret = term.ReadPassword
 )
 
 func runAuth(rc *runCtx, args []string) int {
@@ -158,15 +168,30 @@ func authImportMac(rc *runCtx, args []string) int {
 
 func readLoginPassword(rc *runCtx, passwordStdin bool) (string, error) {
 	if passwordStdin {
-		rd := bufio.NewReader(rc.stdin)
-		line, err := rd.ReadString('\n')
-		if err != nil && err != io.EOF {
-			return "", err
-		}
-		return strings.TrimSpace(line), nil
+		return readSingleLine(rc.stdin)
 	}
-	fmt.Fprintln(rc.stderr, "Paste password (single line), then press Enter:")
-	rd := bufio.NewReader(rc.stdin)
+	return readSecretLine(rc, "Password: ", "Paste password (single line), then press Enter:")
+}
+
+func readSecretLine(rc *runCtx, prompt, fallbackPrompt string) (string, error) {
+	if f, ok := rc.stdin.(fdReader); ok {
+		fd := int(f.Fd())
+		if stdinIsTerminal(fd) {
+			fmt.Fprint(rc.stderr, prompt)
+			data, err := readTerminalSecret(fd)
+			fmt.Fprintln(rc.stderr)
+			if err != nil {
+				return "", err
+			}
+			return strings.TrimSpace(string(data)), nil
+		}
+	}
+	fmt.Fprintln(rc.stderr, fallbackPrompt)
+	return readSingleLine(rc.stdin)
+}
+
+func readSingleLine(r io.Reader) (string, error) {
+	rd := bufio.NewReader(r)
 	line, err := rd.ReadString('\n')
 	if err != nil && err != io.EOF {
 		return "", err
@@ -231,13 +256,10 @@ func authSetToken(rc *runCtx, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
-	fmt.Fprintln(rc.stderr, "Paste token (single line), then press Enter:")
-	rd := bufio.NewReader(rc.stdin)
-	line, err := rd.ReadString('\n')
-	if err != nil && err != io.EOF {
+	token, err := readSecretLine(rc, "Token: ", "Paste token (single line), then press Enter:")
+	if err != nil {
 		return fail(rc, err)
 	}
-	token := strings.TrimSpace(line)
 	if token == "" {
 		return fail(rc, fmt.Errorf("empty token"))
 	}

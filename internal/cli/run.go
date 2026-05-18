@@ -187,7 +187,7 @@ func (rc *runCtx) requireFrame() (int64, error) {
 	if rc.cfg.DefaultFrameID != 0 {
 		return rc.cfg.DefaultFrameID, nil
 	}
-	return 0, errors.New("no frame ID — pass --frame, set SKYLIGHT_FRAME_ID, or `skycli frames set-default <id>`")
+	return 0, errors.New("no frame ID configured — run `skycli frames` to list frame IDs, then pass --frame <id>, set SKYLIGHT_FRAME_ID, or run `skycli frames set-default <id>`")
 }
 
 type command struct {

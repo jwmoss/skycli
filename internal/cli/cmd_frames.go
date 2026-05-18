@@ -8,7 +8,7 @@ import (
 
 func runFrames(rc *runCtx, args []string) int {
 	if len(args) == 0 {
-		return framesShow(rc, nil)
+		return framesList(rc, nil)
 	}
 	switch args[0] {
 	case "list":
@@ -35,7 +35,32 @@ func framesList(rc *runCtx, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
-	return doJSON(rc, http.MethodGet, "/api/frames", nil, nil)
+	c, err := rc.client()
+	if err != nil {
+		return fail(rc, err)
+	}
+	frames, err := c.ListFrames(rc.ctx)
+	if err != nil {
+		return fail(rc, err)
+	}
+	if rc.g.asJSON {
+		_ = rc.out.JSON(frames)
+		return exitOK
+	}
+	rows := make([][]string, 0, len(frames))
+	for _, frame := range frames {
+		rows = append(rows, []string{
+			frame.ID,
+			truncate(frame.Attributes.Name, 28),
+			truncate(frame.Attributes.HouseholdName, 28),
+			frame.Attributes.Timezone,
+			boolYN(frame.Attributes.Mine),
+			boolYN(frame.Attributes.Plus),
+			boolYN(frame.Attributes.Activated),
+		})
+	}
+	rc.out.Table([]string{"ID", "NAME", "HOUSEHOLD", "TIMEZONE", "MINE", "PLUS", "ACTIVATED"}, rows)
+	return exitOK
 }
 
 func framesShow(rc *runCtx, args []string) int {

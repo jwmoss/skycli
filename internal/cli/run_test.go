@@ -230,6 +230,85 @@ func TestChoresListAfterDoesNotInjectDefaultBefore(t *testing.T) {
 	}
 }
 
+func TestChoresListStartEndDateAliases(t *testing.T) {
+	var query string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/frames/123/chores" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		query = r.URL.RawQuery
+		fmt.Fprint(w, `{"data":[]}`)
+	}))
+	defer srv.Close()
+
+	cfgPath := writeTestConfig(t, config.Config{
+		BaseURL:        srv.URL,
+		AuthScheme:     config.DefaultAuthScheme,
+		AccessToken:    "tok",
+		DefaultFrameID: 123,
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"--config", cfgPath, "chores", "list", "--start-date", "2026-05-15", "--end-date", "2026-05-20"}, strings.NewReader(""), &stdout, &stderr)
+	if code != exitOK {
+		t.Fatalf("exit code: got %d\nstdout=%s\nstderr=%s", code, stdout.String(), stderr.String())
+	}
+	values, err := url.ParseQuery(query)
+	if err != nil {
+		t.Fatalf("parse query: %v", err)
+	}
+	if got := values.Get("after"); got != "2026-05-15" {
+		t.Fatalf("after: got %q", got)
+	}
+	if got := values.Get("before"); got != "2026-05-20" {
+		t.Fatalf("before: got %q", got)
+	}
+}
+
+func TestFramesDefaultListsFrameIDs(t *testing.T) {
+	var requestPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestPath = r.URL.Path
+		fmt.Fprint(w, `{"data":[{"id":"123","attributes":{"name":"Kitchen","household_name":"Moss","timezone":"America/New_York","mine":true,"plus":true,"activated":true}}]}`)
+	}))
+	defer srv.Close()
+
+	cfgPath := writeTestConfig(t, config.Config{
+		BaseURL:     srv.URL,
+		AuthScheme:  config.DefaultAuthScheme,
+		AccessToken: "tok",
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"--config", cfgPath, "frames"}, strings.NewReader(""), &stdout, &stderr)
+	if code != exitOK {
+		t.Fatalf("exit code: got %d\nstdout=%s\nstderr=%s", code, stdout.String(), stderr.String())
+	}
+	if requestPath != "/api/frames" {
+		t.Fatalf("path = %q", requestPath)
+	}
+	if !strings.Contains(stdout.String(), "123") || !strings.Contains(stdout.String(), "Kitchen") {
+		t.Fatalf("stdout missing frame summary: %s", stdout.String())
+	}
+}
+
+func TestMissingFrameErrorSuggestsDiscovery(t *testing.T) {
+	cfgPath := writeTestConfig(t, config.Config{
+		BaseURL:     "https://example.invalid",
+		AuthScheme:  config.DefaultAuthScheme,
+		AccessToken: "tok",
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"--config", cfgPath, "categories"}, strings.NewReader(""), &stdout, &stderr)
+	if code != exitErr {
+		t.Fatalf("exit code: got %d\nstdout=%s\nstderr=%s", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "skycli frames") || !strings.Contains(stderr.String(), "set-default") {
+		t.Fatalf("stderr missing frame discovery hint: %s", stderr.String())
+	}
+}
+
 func TestRawUsesAbsoluteURL(t *testing.T) {
 	var sawRaw bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
