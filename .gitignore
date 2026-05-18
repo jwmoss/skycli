@@ -1,0 +1,5 @@
+/skycli
+/dist/
+/.tools/
+*.test
+*.out

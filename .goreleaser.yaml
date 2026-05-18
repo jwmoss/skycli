@@ -1,0 +1,57 @@
+version: 2
+
+project_name: skycli
+
+builds:
+  - id: skycli
+    main: .
+    binary: skycli
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/jwmoss/skycli/internal/cli.version={{ .Tag }}
+      - -X github.com/jwmoss/skycli/internal/cli.commit={{ .ShortCommit }}
+      - -X github.com/jwmoss/skycli/internal/cli.date={{ .Date }}
+
+archives:
+  - id: skycli
+    ids:
+      - skycli
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+
+brews:
+  - name: skycli
+    ids:
+      - skycli
+    repository:
+      owner: jwmoss
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/jwmoss/skycli"
+    description: "Unofficial CLI for the Skylight Calendar private API"
+    license: MIT
+    install: |
+      bin.install "skycli"
+    test: |
+      system "#{bin}/skycli", "version"
