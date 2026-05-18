@@ -2,6 +2,13 @@
 
 All notable changes to `skycli` will be documented in this file.
 
+## v0.1.2 - 2026-05-18
+
+### Fixed
+
+- Republish the v0.1.1 auth prompt and frame discovery fixes through the
+  tag-triggered release workflow so the published release state is clean.
+
 ## v0.1.1 - 2026-05-18
 
 ### Fixed
