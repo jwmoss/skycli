@@ -2,6 +2,16 @@
 
 All notable changes to `skycli` will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- Pin GitHub Actions to commit SHAs and bump to Node 24 runtimes
+  (`checkout` v6, `setup-go` v6, `goreleaser-action` v7), set
+  `persist-credentials: false`, and disable the Go cache in the release job to
+  avoid cache poisoning. Add a Dependabot config to track Actions and Go
+  modules with grouped, 7-day-cooldown updates.
+
 ## v0.1.3 - 2026-06-07
 
 ### Fixed
