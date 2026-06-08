@@ -145,7 +145,10 @@ func runExport(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
-	resources := parseResourceSelection(*resourcesRaw, allPortableResources)
+	resources, err := parseResourceSelection(*resourcesRaw, allPortableResources)
+	if err != nil {
+		return usage(rc, err.Error())
+	}
 	out, err := collectPortableExport(rc, frameID, resources, *days)
 	if err != nil {
 		return fail(rc, err)
@@ -207,10 +210,11 @@ func collectPortableExport(rc *runCtx, frameID int64, resources map[string]bool,
 				HideFromFrame: l.Attributes.HideFromFrame,
 			}
 			items, err := fetchListItems(rc, frameID, l.ID)
-			if err == nil {
-				for _, it := range items {
-					pl.Items = append(pl.Items, portableListItem{ID: it.ID, Label: it.Attributes.Label, Status: it.Attributes.Status, Position: it.Attributes.Position})
-				}
+			if err != nil {
+				return portableExport{}, fmt.Errorf("fetch items for list %s: %w", l.ID, err)
+			}
+			for _, it := range items {
+				pl.Items = append(pl.Items, portableListItem{ID: it.ID, Label: it.Attributes.Label, Status: it.Attributes.Status, Position: it.Attributes.Position})
 			}
 			out.Lists = append(out.Lists, pl)
 		}
@@ -260,7 +264,10 @@ func runImport(rc *runCtx, args []string) int {
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return fail(rc, fmt.Errorf("parse export file: %w", err))
 	}
-	resources := parseResourceSelection(*resourcesRaw, allPortableResources)
+	resources, err := parseResourceSelection(*resourcesRaw, allPortableResources)
+	if err != nil {
+		return usage(rc, err.Error())
+	}
 	if *dryRun {
 		_ = rc.out.JSON(importCounts(data, resources))
 		return exitOK
@@ -336,13 +343,13 @@ func runImport(rc *runCtx, args []string) int {
 	return exitOK
 }
 
-func parseResourceSelection(raw string, all []string) map[string]bool {
+func parseResourceSelection(raw string, all []string) (map[string]bool, error) {
 	selected := map[string]bool{}
 	if raw == "" || raw == "all" {
 		for _, r := range all {
 			selected[r] = true
 		}
-		return selected
+		return selected, nil
 	}
 	valid := map[string]bool{}
 	for _, r := range all {
@@ -350,11 +357,18 @@ func parseResourceSelection(raw string, all []string) map[string]bool {
 	}
 	for _, r := range strings.Split(raw, ",") {
 		r = strings.TrimSpace(r)
-		if valid[r] {
-			selected[r] = true
+		if r == "" {
+			continue
 		}
+		if !valid[r] {
+			return nil, fmt.Errorf("unknown resource %q (valid: %s)", r, strings.Join(all, ","))
+		}
+		selected[r] = true
 	}
-	return selected
+	if len(selected) == 0 {
+		return nil, fmt.Errorf("no resources selected (valid: %s)", strings.Join(all, ","))
+	}
+	return selected, nil
 }
 
 func portableChores(chores []skylight.Chore) []portableChore {

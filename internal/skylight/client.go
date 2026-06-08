@@ -112,9 +112,11 @@ func (c *Client) Do(ctx context.Context, method, path string, query url.Values, 
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", c.authScheme+" "+c.token)
+	if sameOrigin(c.baseURL, u) {
+		req.Header.Set("Authorization", c.authScheme+" "+c.token)
+		req.Header.Set("skylight-api-version", c.apiVersion)
+	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("skylight-api-version", c.apiVersion)
 	req.Header.Set("User-Agent", c.userAgent)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -142,6 +144,21 @@ func (c *Client) Do(ctx context.Context, method, path string, query url.Values, 
 		}
 	}
 	return data, nil
+}
+
+// sameOrigin reports whether reqURL targets the same scheme+host as the
+// configured Skylight base URL. Off-origin absolute URLs (e.g. an arbitrary
+// target passed to `skycli raw`) must not receive the user's bearer token.
+func sameOrigin(baseURL, reqURL string) bool {
+	b, err := url.Parse(baseURL)
+	if err != nil {
+		return false
+	}
+	r, err := url.Parse(reqURL)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(b.Scheme, r.Scheme) && strings.EqualFold(b.Host, r.Host)
 }
 
 func extractErrorMessage(data []byte) string {

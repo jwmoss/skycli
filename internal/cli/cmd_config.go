@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -199,7 +200,12 @@ func configEdit(rc *runCtx, args []string) int {
 	if editor == "" {
 		editor = "vi"
 	}
-	cmd := exec.Command(editor, path) //nolint:gosec
+	editorArgv, err := splitEditorCommand(editor)
+	if err != nil {
+		return fail(rc, err)
+	}
+	editorArgv = append(editorArgv, path)
+	cmd := exec.Command(editorArgv[0], editorArgv[1:]...) //nolint:gosec
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -238,4 +244,46 @@ func maskConfigValue(value string, show bool) string {
 
 func skylightParseID(value string) (int64, error) {
 	return parseInt64Flag(value, "value")
+}
+
+// splitEditorCommand splits an EDITOR/VISUAL value into argv, honoring single
+// and double quotes so settings like `code -w` or `vim -n` are parsed into an
+// executable plus arguments rather than a single binary name with spaces.
+func splitEditorCommand(editor string) ([]string, error) {
+	var fields []string
+	var cur strings.Builder
+	var quote rune
+	hasField := false
+	for _, r := range editor {
+		switch {
+		case quote != 0:
+			if r == quote {
+				quote = 0
+			} else {
+				cur.WriteRune(r)
+			}
+		case r == '\'' || r == '"':
+			quote = r
+			hasField = true
+		case r == ' ' || r == '\t':
+			if hasField {
+				fields = append(fields, cur.String())
+				cur.Reset()
+				hasField = false
+			}
+		default:
+			cur.WriteRune(r)
+			hasField = true
+		}
+	}
+	if quote != 0 {
+		return nil, fmt.Errorf("unterminated quote in editor command %q", editor)
+	}
+	if hasField {
+		fields = append(fields, cur.String())
+	}
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("empty editor command")
+	}
+	return fields, nil
 }

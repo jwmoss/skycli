@@ -63,6 +63,13 @@ func bountiesCreate(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
+	rewardCats := []int64{catID}
+	if strings.TrimSpace(*categoryIDs) != "" {
+		rewardCats, err = parseCategoryList(*categoryIDs)
+		if err != nil {
+			return fail(rc, err)
+		}
+	}
 	c, err := rc.client()
 	if err != nil {
 		return fail(rc, err)
@@ -80,14 +87,6 @@ func bountiesCreate(rc *runCtx, args []string) int {
 	createdChore, err := c.CreateChore(rc.ctx, frameID, chore)
 	if err != nil {
 		return fail(rc, fmt.Errorf("create bounty chore: %w", err))
-	}
-	rewardCats, err := parseCategoryList(*categoryIDs)
-	if err != nil && strings.TrimSpace(*categoryIDs) != "" {
-		_ = c.DeleteChore(rc.ctx, frameID, mustParseID(createdChore.ID), "all")
-		return fail(rc, err)
-	}
-	if len(rewardCats) == 0 {
-		rewardCats = []int64{catID}
 	}
 	rewards, err := c.CreateRewards(rc.ctx, frameID, skylight.RewardCreate{
 		Name:        *rewardTitle,
@@ -182,6 +181,10 @@ func bountiesUpdate(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
+	rewardNum, err := parseInt64Flag(*rewardID, "reward-id")
+	if err != nil {
+		return fail(rc, err)
+	}
 	c, err := rc.client()
 	if err != nil {
 		return fail(rc, err)
@@ -196,10 +199,6 @@ func bountiesUpdate(rc *runCtx, args []string) int {
 	chore, err := c.UpdateChore(rc.ctx, frameID, *choreID, choreUpdate)
 	if err != nil {
 		return fail(rc, fmt.Errorf("update bounty chore: %w", err))
-	}
-	rewardNum, err := parseInt64Flag(*rewardID, "reward-id")
-	if err != nil {
-		return fail(rc, err)
 	}
 	rewardUpdate := skylight.RewardUpdate{}
 	if *rewardTitle != "" {
@@ -246,12 +245,12 @@ func bountiesDelete(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
-	if err := c.DeleteChore(rc.ctx, frameID, choreNum, "all"); err != nil {
-		return fail(rc, fmt.Errorf("delete bounty chore: %w", err))
-	}
 	rewardNum, err := parseInt64Flag(*rewardID, "reward-id")
 	if err != nil {
 		return fail(rc, err)
+	}
+	if err := c.DeleteChore(rc.ctx, frameID, choreNum, "all"); err != nil {
+		return fail(rc, fmt.Errorf("delete bounty chore: %w", err))
 	}
 	if err := c.DeleteReward(rc.ctx, frameID, rewardNum); err != nil {
 		return fail(rc, fmt.Errorf("delete bounty reward: %w", err))
