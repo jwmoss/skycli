@@ -2,7 +2,7 @@
 
 All notable changes to `skycli` will be documented in this file.
 
-## Unreleased
+## v0.1.3 - 2026-06-07
 
 ### Fixed
 
