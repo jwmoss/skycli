@@ -15,8 +15,8 @@ Work style: concise, direct, repo-first. Prefer short bullets over long prose.
 
 - Fast gate: `make ci`.
 - Individual checks: `make fmt`, `make test`, `make vet`, `make build`.
-- Release config check: `go run github.com/goreleaser/goreleaser/v2@latest check`.
-- Local release dry run: `go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean`.
+- Release config check: `make release-check`.
+- Local release dry run: `make release-snapshot`.
 - Homebrew verify after a release: `brew install jwmoss/tap/skycli && skycli version`.
 
 ## Project Defaults
@@ -50,5 +50,5 @@ Work style: concise, direct, repo-first. Prefer short bullets over long prose.
 
 - Changelog first: user-facing changes belong in `CHANGELOG.md`.
 - Tag format: `vX.Y.Z`.
-- Release workflow publishes GitHub assets and updates `jwmoss/homebrew-tap`.
+- Release workflow uses the pinned GoReleaser version from `Makefile` and publishes GitHub assets plus the `jwmoss/homebrew-tap` formula.
 - After release, verify GitHub release assets, tap formula, `brew install`, and `skycli version`.

@@ -33,7 +33,9 @@ go install github.com/jwmoss/skycli@latest
 
 ```bash
 git clone https://github.com/jwmoss/skycli ~/github/skycli
-cd ~/github/skycli && go build -o ~/go/bin/skycli ./.
+cd ~/github/skycli
+make build
+./skycli version
 ```
 
 ## Authentication
@@ -302,17 +304,30 @@ make test
 make vet
 make ci
 make build
+make release-check
+make release-snapshot
 ```
 
 CI intentionally stays small: cross-platform `go test`, `go vet`, and
-`go build`. This is a private-API CLI, so the repo avoids heavy public-release
-machinery until it is actually needed.
+`go build`. Release checks are separate so local development stays fast while
+tagged builds still validate the GoReleaser configuration and Homebrew formula
+generation path.
 
 ## Release
 
-Tagging `vX.Y.Z` triggers GoReleaser to publish GitHub release assets and update
-the `jwmoss/homebrew-tap` formula. The release workflow needs a
-`HOMEBREW_TAP_TOKEN` secret with write access to that tap repository.
+The GoReleaser version is pinned by `GORELEASER_VERSION` in `Makefile` and must
+match `.github/workflows/release.yml`. Before tagging, run:
+
+```bash
+make ci
+make release-check
+make release-snapshot
+```
+
+Tagging `vX.Y.Z` triggers GoReleaser to build release archives, publish GitHub
+release assets, and update the `jwmoss/homebrew-tap` formula. The release
+workflow needs a `HOMEBREW_TAP_TOKEN` secret with write access to that tap
+repository.
 
 ## Status
 

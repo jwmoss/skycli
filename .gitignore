@@ -3,3 +3,6 @@
 /.tools/
 *.test
 *.out
+
+# clawpatch tool state
+/.clawpatch/

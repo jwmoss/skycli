@@ -2,6 +2,19 @@
 
 All notable changes to `skycli` will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- Make `skycli version` report the Go module version for `go install
+  github.com/jwmoss/skycli@vX.Y.Z` builds instead of falling back to an old
+  source default.
+
+### Changed
+
+- Pin GoReleaser for release builds, add Make targets for release validation,
+  and document the expected release check flow.
+
 ## v0.1.2 - 2026-05-18
 
 ### Fixed
