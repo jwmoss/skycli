@@ -9,6 +9,18 @@ All notable changes to `skycli` will be documented in this file.
 - Make `skycli version` report the Go module version for `go install
   github.com/jwmoss/skycli@vX.Y.Z` builds instead of falling back to an old
   source default.
+- Stop sending the Skylight access token to off-origin URLs passed to `skycli
+  raw`; the `Authorization` and `skylight-api-version` headers are now only
+  attached when the request host matches the configured base URL.
+- Validate bounty `--reward-id` and `--category-ids` before any chore is
+  created, updated, or deleted so a bad ID can no longer leave a half-applied
+  bounty.
+- Fail `skycli export` when a list's items cannot be fetched instead of writing
+  a backup with lists missing their contents.
+- Reject unknown `--resources` tokens in `export`/`import` with a usage error
+  instead of silently producing a partial or empty result.
+- Parse `EDITOR`/`VISUAL` values with arguments (e.g. `code -w`) in `config
+  edit` instead of treating the whole value as a single executable name.
 
 ### Changed
 

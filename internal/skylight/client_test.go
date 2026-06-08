@@ -32,6 +32,37 @@ func TestDoUsesAbsoluteURLWithoutPrependingBase(t *testing.T) {
 	}
 }
 
+func TestDoSuppressesAuthForOffOriginURL(t *testing.T) {
+	var offOriginAuth string
+	off := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		offOriginAuth = r.Header.Get("Authorization")
+		fmt.Fprint(w, `{}`)
+	}))
+	defer off.Close()
+
+	var sameOriginAuth string
+	base := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sameOriginAuth = r.Header.Get("Authorization")
+		fmt.Fprint(w, `{}`)
+	}))
+	defer base.Close()
+
+	c := New(base.URL, "tok")
+	if _, err := c.Do(context.Background(), http.MethodGet, off.URL+"/raw", nil, nil); err != nil {
+		t.Fatalf("off-origin Do: %v", err)
+	}
+	if offOriginAuth != "" {
+		t.Fatalf("off-origin request leaked Authorization header: %q", offOriginAuth)
+	}
+
+	if _, err := c.Do(context.Background(), http.MethodGet, "/api/user", nil, nil); err != nil {
+		t.Fatalf("same-origin Do: %v", err)
+	}
+	if sameOriginAuth != "Bearer tok" {
+		t.Fatalf("same-origin request missing Authorization: got %q", sameOriginAuth)
+	}
+}
+
 func TestCreateUpForGrabsChoreUsesCreateMultiple(t *testing.T) {
 	var payload map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
