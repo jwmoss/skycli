@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -37,6 +38,9 @@ func TestSplitEditorCommand(t *testing.T) {
 // config edit must invoke an EDITOR that carries its own arguments, passing both
 // the configured argument and the config path through to the editor process.
 func TestConfigEditPassesEditorArguments(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("relies on a POSIX shell helper; argv parsing is covered by TestSplitEditorCommand")
+	}
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args.txt")
 	script := filepath.Join(dir, "fake-editor.sh")
