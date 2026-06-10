@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/jwmoss/skycli/internal/config"
 )
 
 func TestSplitEditorCommand(t *testing.T) {
@@ -65,5 +67,54 @@ func TestConfigEditPassesEditorArguments(t *testing.T) {
 	lines := strings.Fields(string(got))
 	if len(lines) != 2 || lines[0] != "--flag" || lines[1] != cfgPath {
 		t.Fatalf("editor received %q, want [--flag %s]", string(got), cfgPath)
+	}
+}
+
+func TestConfigGetMasksSecretKeysByDefault(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	t.Setenv(secretsEnvFileKey, "test-secret-key")
+
+	cfgPath := filepath.Join(home, "config.json")
+	if err := config.Save(cfgPath, &config.Config{
+		SecretsBackend: secretsBackendFile,
+		AuthScheme:     config.DefaultAuthScheme,
+		APIVersion:     config.DefaultAPIVersion,
+	}); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"--config", cfgPath, "config", "set", "access_token", "secret-token"},
+		strings.NewReader(""), &stdout, &stderr)
+	if code != exitOK {
+		t.Fatalf("set exit code: got %d\nstderr=%s", code, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = Run(context.Background(), []string{"--config", cfgPath, "config", "get", "access_token"},
+		strings.NewReader(""), &stdout, &stderr)
+	if code != exitOK {
+		t.Fatalf("get exit code: got %d\nstderr=%s", code, stderr.String())
+	}
+	if strings.Contains(stdout.String(), "secret-token") {
+		t.Fatalf("config get exposed token: %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "secr****") {
+		t.Fatalf("config get did not report masked token: %q", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = Run(context.Background(), []string{"--config", cfgPath, "config", "get", "--show-secrets", "access_token"},
+		strings.NewReader(""), &stdout, &stderr)
+	if code != exitOK {
+		t.Fatalf("get --show-secrets exit code: got %d\nstderr=%s", code, stderr.String())
+	}
+	if strings.TrimSpace(stdout.String()) != "secret-token" {
+		t.Fatalf("config get --show-secrets = %q", stdout.String())
 	}
 }

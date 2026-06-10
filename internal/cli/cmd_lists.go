@@ -34,6 +34,8 @@ func runLists(rc *runCtx, args []string) int {
 		return listsAction(rc, args[1:], "organize")
 	case "order":
 		return listsOrder(rc, args[1:])
+	case "task-box", "task-box-items":
+		return taskBoxItemsList(rc, args[1:])
 	case "task-box-item":
 		return taskBoxItemCreate(rc, args[1:])
 	default:
@@ -362,6 +364,16 @@ func listsOrder(rc *runCtx, args []string) int {
 	return doFrameJSON(rc, *frameStr, http.MethodPost, "/api/frames/%d/lists/%s/order", nil, body, *listID)
 }
 
+func taskBoxItemsList(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("lists task-box-items", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frameStr := fs.String("frame", "", "frame ID")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	return doFrameJSON(rc, *frameStr, http.MethodGet, "/api/frames/%d/task_box/items", nil, nil)
+}
+
 func taskBoxItemCreate(rc *runCtx, args []string) int {
 	fs := flag.NewFlagSet("lists task-box-item", flag.ContinueOnError)
 	fs.SetOutput(rc.stderr)
@@ -374,7 +386,7 @@ func taskBoxItemCreate(rc *runCtx, args []string) int {
 		return usage(rc, err.Error())
 	}
 	body := map[string]any{"task_box_item": map[string]any{"title": *title}}
-	return doFrameJSON(rc, *frameStr, http.MethodPost, "/api/frames/%d/task_box_items", nil, body)
+	return doFrameJSON(rc, *frameStr, http.MethodPost, "/api/frames/%d/task_box/items", nil, body)
 }
 
 func listsClearCompleted(rc *runCtx, args []string) int {

@@ -421,7 +421,20 @@ func portableRewards(rewards []skylight.Reward) []portableReward {
 func portableCalendarEvents(events []calendarEventEntry) []portableCalendarEvent {
 	out := make([]portableCalendarEvent, 0, len(events))
 	for _, ev := range events {
-		out = append(out, portableCalendarEvent{ID: ev.ID, Summary: ev.Attributes.Summary, StartsAt: ev.Attributes.StartsAt, EndsAt: ev.Attributes.EndsAt, AllDay: ev.Attributes.AllDay, Color: ev.Attributes.Color})
+		categoryID := ""
+		if ev.Relationships.Category.Data != nil {
+			categoryID = ev.Relationships.Category.Data.ID
+		}
+		out = append(out, portableCalendarEvent{
+			ID:          ev.ID,
+			Summary:     ev.Attributes.Summary,
+			StartsAt:    ev.Attributes.StartsAt,
+			EndsAt:      ev.Attributes.EndsAt,
+			AllDay:      ev.Attributes.AllDay,
+			Color:       ev.Attributes.Color,
+			CategoryID:  categoryID,
+			Description: ev.Attributes.Description,
+		})
 	}
 	return out
 }
@@ -573,7 +586,16 @@ func importSittings(rc *runCtx, frameID int64, sittings []portableMealSitting, c
 
 func importCalendarEvents(rc *runCtx, frameID int64, events []portableCalendarEvent, created map[string]int, failures *[]map[string]string) {
 	for _, ev := range events {
-		payload := map[string]any{"summary": ev.Summary, "starts_at": ev.StartsAt, "ends_at": ev.EndsAt, "all_day": ev.AllDay, "color": ev.Color, "category_id": ev.CategoryID, "description": ev.Description}
+		payload := map[string]any{"summary": ev.Summary, "starts_at": ev.StartsAt, "ends_at": ev.EndsAt, "all_day": ev.AllDay}
+		if ev.Color != "" {
+			payload["color"] = ev.Color
+		}
+		if ev.CategoryID != "" {
+			payload["category_id"] = ev.CategoryID
+		}
+		if ev.Description != "" {
+			payload["description"] = ev.Description
+		}
 		if err := postImport(rc, frameID, "/api/frames/%d/calendar_events", payload); err != nil {
 			*failures = append(*failures, map[string]string{"resource": "calendar", "name": ev.Summary, "error": err.Error()})
 			continue

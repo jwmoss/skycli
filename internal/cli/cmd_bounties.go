@@ -212,7 +212,7 @@ func bountiesUpdate(rc *runCtx, args []string) int {
 	}
 	reward, err := c.UpdateReward(rc.ctx, frameID, rewardNum, rewardUpdate)
 	if err != nil {
-		return fail(rc, fmt.Errorf("update bounty reward: %w", err))
+		return failBountyPartial(rc, "update", map[string]any{"chore": chore}, fmt.Errorf("update bounty reward: %w", err))
 	}
 	_ = rc.out.JSON(bountyResult{Chore: chore, Reward: reward})
 	return exitOK
@@ -253,10 +253,23 @@ func bountiesDelete(rc *runCtx, args []string) int {
 		return fail(rc, fmt.Errorf("delete bounty chore: %w", err))
 	}
 	if err := c.DeleteReward(rc.ctx, frameID, rewardNum); err != nil {
-		return fail(rc, fmt.Errorf("delete bounty reward: %w", err))
+		return failBountyPartial(rc, "delete", map[string]any{"deleted_chore": *choreID}, fmt.Errorf("delete bounty reward: %w", err))
 	}
 	_ = rc.out.JSON(map[string]any{"deleted_chore": *choreID, "deleted_reward": *rewardID})
 	return exitOK
+}
+
+func failBountyPartial(rc *runCtx, operation string, applied map[string]any, err error) int {
+	_ = rc.out.JSON(map[string]any{
+		"error":     err.Error(),
+		"operation": operation,
+		"partial":   true,
+		"applied":   applied,
+	})
+	if !rc.g.asJSON {
+		fmt.Fprintln(rc.stderr, "error:", err.Error())
+	}
+	return exitErr
 }
 
 func mustParseID(s string) int64 {

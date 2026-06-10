@@ -37,7 +37,7 @@ func runDoctor(rc *runCtx, args []string) int {
 	frameID, ferr := rc.requireFrame()
 	if ferr != nil {
 		checks = append(checks, map[string]any{"check": "frame_default", "ok": false, "error": ferr.Error()})
-		return finishDoctor(rc, checks, nil)
+		return finishDoctor(rc, checks, ferr)
 	}
 	frame, err := c.GetFrame(rc.ctx, frameID)
 	if err != nil {
@@ -62,24 +62,35 @@ func runDoctor(rc *runCtx, args []string) int {
 }
 
 func finishDoctor(rc *runCtx, checks []map[string]any, err error) int {
+	ok := err == nil && doctorChecksOK(checks)
 	if rc.g.asJSON {
-		out := map[string]any{"checks": checks, "ok": err == nil}
+		out := map[string]any{"checks": checks, "ok": ok}
 		if err != nil {
 			out["error"] = err.Error()
 		}
 		_ = rc.out.JSON(out)
-		if err != nil {
+		if !ok {
 			return exitErr
 		}
 		return exitOK
 	}
 	rc.out.Table([]string{"CHECK", "OK", "INFO"}, doctorRows(checks))
-	if err != nil {
+	if !ok {
 		rc.out.Line("FAIL: %s", err)
 		return exitErr
 	}
 	rc.out.Line("OK")
 	return exitOK
+}
+
+func doctorChecksOK(checks []map[string]any) bool {
+	for _, check := range checks {
+		ok, _ := check["ok"].(bool)
+		if !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func doctorRows(checks []map[string]any) [][]string {

@@ -87,11 +87,18 @@ func configShow(rc *runCtx, args []string) int {
 }
 
 func configGet(rc *runCtx, args []string) int {
-	if len(args) != 1 {
-		return usage(rc, "skycli config get <key>")
+	fs := flag.NewFlagSet("config get", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	showSecrets := fs.Bool("show-secrets", false, "show token values without masking")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
 	}
-	key := normalizeConfigKey(args[0])
-	if key == "access_token" || key == "refresh_token" {
+	if fs.NArg() != 1 {
+		return usage(rc, "skycli config get [--show-secrets] <key>")
+	}
+	key := normalizeConfigKey(fs.Arg(0))
+	secretKey := key == "access_token" || key == "refresh_token"
+	if secretKey {
 		rc.loadConfiguredSecrets()
 	}
 	if key == "default_frame_id" {
@@ -100,9 +107,13 @@ func configGet(rc *runCtx, args []string) int {
 	}
 	getter, ok := configKeys[key]
 	if !ok {
-		return usage(rc, "unknown config key: "+args[0])
+		return usage(rc, "unknown config key: "+fs.Arg(0))
 	}
-	rc.out.Line("%s", *getter(rc.cfg))
+	value := *getter(rc.cfg)
+	if secretKey {
+		value = maskConfigValue(value, *showSecrets)
+	}
+	rc.out.Line("%s", value)
 	return exitOK
 }
 
