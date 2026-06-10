@@ -220,6 +220,7 @@ skycli calendar sources
 
 ```bash
 skycli lists list
+skycli lists task-box-items
 skycli lists create --title "Errands" --kind to_do
 skycli lists add-item --list-id 123 --title "Return library books"
 skycli lists clear-completed --list-id 123

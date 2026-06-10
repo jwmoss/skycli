@@ -20,15 +20,21 @@ import (
 func TestDoctorUsesEnvAccessToken(t *testing.T) {
 	var authHeader string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/user" {
+		switch r.URL.Path {
+		case "/api/user":
+			authHeader = r.Header.Get("Authorization")
+			fmt.Fprint(w, `{"data":{"id":"user-1","attributes":{}}}`)
+		case "/api/frames/123":
+			fmt.Fprint(w, `{"data":{"id":"123","attributes":{"name":"Kitchen"}}}`)
+		case "/api/frames/123/categories":
+			fmt.Fprint(w, `{"data":[]}`)
+		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
-		authHeader = r.Header.Get("Authorization")
-		fmt.Fprint(w, `{"data":{"id":"user-1","attributes":{}}}`)
 	}))
 	defer srv.Close()
 
-	cfgPath := writeTestConfig(t, config.Config{BaseURL: srv.URL})
+	cfgPath := writeTestConfig(t, config.Config{BaseURL: srv.URL, DefaultFrameID: 123})
 	t.Setenv("SKYLIGHT_ACCESS_TOKEN", "env-token")
 
 	var stdout, stderr bytes.Buffer
@@ -38,6 +44,47 @@ func TestDoctorUsesEnvAccessToken(t *testing.T) {
 	}
 	if authHeader != "Bearer env-token" {
 		t.Fatalf("Authorization: got %q", authHeader)
+	}
+}
+
+func TestDoctorJSONReportsFailedCheckAsNotOK(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/user" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		fmt.Fprint(w, `{"data":{"id":"user-1","attributes":{}}}`)
+	}))
+	defer srv.Close()
+
+	cfgPath := writeTestConfig(t, config.Config{
+		BaseURL:     srv.URL,
+		AuthScheme:  config.DefaultAuthScheme,
+		AccessToken: "tok",
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"--config", cfgPath, "--json", "doctor"}, strings.NewReader(""), &stdout, &stderr)
+	if code != exitErr {
+		t.Fatalf("exit code: got %d\nstdout=%s\nstderr=%s", code, stdout.String(), stderr.String())
+	}
+	var got struct {
+		OK     bool             `json:"ok"`
+		Checks []map[string]any `json:"checks"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("parse stdout: %v\n%s", err, stdout.String())
+	}
+	if got.OK {
+		t.Fatalf("doctor ok=true with failed check: %s", stdout.String())
+	}
+	var sawFrameDefault bool
+	for _, check := range got.Checks {
+		if check["check"] == "frame_default" && check["ok"] == false {
+			sawFrameDefault = true
+		}
+	}
+	if !sawFrameDefault {
+		t.Fatalf("missing failed frame_default check: %s", stdout.String())
 	}
 }
 
@@ -63,6 +110,10 @@ func TestExpiredConfigTokenAutoRefreshes(t *testing.T) {
 				t.Fatalf("Authorization: got %q", got)
 			}
 			fmt.Fprint(w, `{"data":{"id":"user-1","attributes":{}}}`)
+		case "/api/frames/123":
+			fmt.Fprint(w, `{"data":{"id":"123","attributes":{"name":"Kitchen"}}}`)
+		case "/api/frames/123/categories":
+			fmt.Fprint(w, `{"data":[]}`)
 		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -76,6 +127,7 @@ func TestExpiredConfigTokenAutoRefreshes(t *testing.T) {
 		RefreshToken:      "old-refresh",
 		AccessTokenExpAt:  time.Now().Add(-time.Hour),
 		DeviceFingerprint: "fp-1",
+		DefaultFrameID:    123,
 	})
 
 	var stdout, stderr bytes.Buffer
@@ -262,6 +314,44 @@ func TestChoresListStartEndDateAliases(t *testing.T) {
 	}
 	if got := values.Get("before"); got != "2026-05-20" {
 		t.Fatalf("before: got %q", got)
+	}
+}
+
+func TestCalendarListUsesCurrentDateRangeQueryKeys(t *testing.T) {
+	var query string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/frames/123/calendar_events" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		query = r.URL.RawQuery
+		fmt.Fprint(w, `{"data":[]}`)
+	}))
+	defer srv.Close()
+
+	cfgPath := writeTestConfig(t, config.Config{
+		BaseURL:        srv.URL,
+		AuthScheme:     config.DefaultAuthScheme,
+		AccessToken:    "tok",
+		DefaultFrameID: 123,
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"--config", cfgPath, "calendar", "list", "--start-date", "2026-06-10", "--end-date", "2026-06-17"}, strings.NewReader(""), &stdout, &stderr)
+	if code != exitOK {
+		t.Fatalf("exit code: got %d\nstdout=%s\nstderr=%s", code, stdout.String(), stderr.String())
+	}
+	values, err := url.ParseQuery(query)
+	if err != nil {
+		t.Fatalf("parse query: %v", err)
+	}
+	if got := values.Get("date_min"); got != "2026-06-10" {
+		t.Fatalf("date_min: got %q", got)
+	}
+	if got := values.Get("date_max"); got != "2026-06-17" {
+		t.Fatalf("date_max: got %q", got)
+	}
+	if values.Get("start_date") != "" || values.Get("end_date") != "" {
+		t.Fatalf("legacy query keys should be empty: %s", query)
 	}
 }
 
@@ -524,6 +614,64 @@ func TestGroceryAddMultipleItems(t *testing.T) {
 	}
 	if strings.Join(labels, ",") != "Milk,Eggs" {
 		t.Fatalf("labels = %#v", labels)
+	}
+}
+
+func TestListsTaskBoxItemsUsesTaskBoxEndpoint(t *testing.T) {
+	var requestPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestPath = r.URL.Path
+		fmt.Fprint(w, `{"data":[{"id":"1","type":"task_box_item","attributes":{"summary":"Laundry"}}]}`)
+	}))
+	defer srv.Close()
+
+	cfgPath := writeTestConfig(t, config.Config{
+		BaseURL:        srv.URL,
+		AuthScheme:     config.DefaultAuthScheme,
+		AccessToken:    "tok",
+		DefaultFrameID: 123,
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"--config", cfgPath, "--readonly", "--json", "lists", "task-box-items"}, strings.NewReader(""), &stdout, &stderr)
+	if code != exitOK {
+		t.Fatalf("exit code: got %d\nstdout=%s\nstderr=%s", code, stdout.String(), stderr.String())
+	}
+	if requestPath != "/api/frames/123/task_box/items" {
+		t.Fatalf("path = %q", requestPath)
+	}
+}
+
+func TestListsTaskBoxItemCreateUsesTaskBoxEndpoint(t *testing.T) {
+	var requestPath string
+	var payload map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestPath = r.URL.Path
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		fmt.Fprint(w, `{"data":{"id":"1","type":"task_box_item","attributes":{"summary":"Laundry"}}}`)
+	}))
+	defer srv.Close()
+
+	cfgPath := writeTestConfig(t, config.Config{
+		BaseURL:        srv.URL,
+		AuthScheme:     config.DefaultAuthScheme,
+		AccessToken:    "tok",
+		DefaultFrameID: 123,
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"--config", cfgPath, "--json", "lists", "task-box-item", "--title", "Laundry"}, strings.NewReader(""), &stdout, &stderr)
+	if code != exitOK {
+		t.Fatalf("exit code: got %d\nstdout=%s\nstderr=%s", code, stdout.String(), stderr.String())
+	}
+	if requestPath != "/api/frames/123/task_box/items" {
+		t.Fatalf("path = %q", requestPath)
+	}
+	item, ok := payload["task_box_item"].(map[string]any)
+	if !ok || item["title"] != "Laundry" {
+		t.Fatalf("payload = %#v", payload)
 	}
 }
 

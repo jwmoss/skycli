@@ -4,6 +4,22 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- Mask `config get access_token` and `config get refresh_token` output by
+  default; use `--show-secrets` only when raw token output is explicitly needed.
+- Make `doctor` return non-zero and `ok: false` whenever any reported check
+  fails, including a missing default frame.
+- Send calendar list/week/export date ranges with Skylight's current
+  `date_min`/`date_max` query keys so typed calendar reads work against the
+  live API.
+- Preserve calendar event descriptions and categories in export/import.
+- Return structured partial-failure JSON when a bounty update/delete applies
+  the chore change but the paired reward mutation fails.
+- Add `lists task-box-items` for reading task-box items and fix
+  `lists task-box-item` to use Skylight's live `/task_box/items` endpoint
+  instead of the obsolete `/task_box_items` path.
+
 ### Changed
 
 - Pin GitHub Actions to commit SHAs and bump to Node 24 runtimes

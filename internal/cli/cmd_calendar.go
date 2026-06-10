@@ -37,12 +37,20 @@ func runCalendar(rc *runCtx, args []string) int {
 type calendarEventEntry struct {
 	ID         string `json:"id"`
 	Attributes struct {
-		Summary  string `json:"summary"`
-		StartsAt string `json:"starts_at"`
-		EndsAt   string `json:"ends_at"`
-		AllDay   bool   `json:"all_day"`
-		Color    string `json:"color"`
+		Summary     string `json:"summary"`
+		StartsAt    string `json:"starts_at"`
+		EndsAt      string `json:"ends_at"`
+		AllDay      bool   `json:"all_day"`
+		Color       string `json:"color"`
+		Description string `json:"description"`
 	} `json:"attributes"`
+	Relationships struct {
+		Category struct {
+			Data *struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		} `json:"category"`
+	} `json:"relationships"`
 }
 
 type weeklyCalendarDay struct {
@@ -62,10 +70,10 @@ func calendarList(rc *runCtx, args []string) int {
 	}
 	q := url.Values{}
 	if *start != "" {
-		q.Set("start_date", *start)
+		q.Set("date_min", *start)
 	}
 	if *end != "" {
-		q.Set("end_date", *end)
+		q.Set("date_max", *end)
 	}
 	return doFrameJSON(rc, *frameStr, http.MethodGet, "/api/frames/%d/calendar_events", q, nil)
 }
@@ -128,10 +136,10 @@ func fetchCalendarEvents(rc *runCtx, frameID int64, start, end string) ([]calend
 	}
 	q := url.Values{}
 	if start != "" {
-		q.Set("start_date", start)
+		q.Set("date_min", start)
 	}
 	if end != "" {
-		q.Set("end_date", end)
+		q.Set("date_max", end)
 	}
 	raw, err := c.Do(rc.ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/calendar_events", frameID), q, nil)
 	if err != nil {
