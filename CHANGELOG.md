@@ -4,6 +4,8 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+## v0.1.4 - 2026-06-10
+
 ### Fixed
 
 - Mask `config get access_token` and `config get refresh_token` output by
