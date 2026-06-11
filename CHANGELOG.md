@@ -4,6 +4,8 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+## v0.1.5 - 2026-06-11
+
 ### Added
 
 - Add `skycli commands` and `skycli --json` command-catalog output for agents,
@@ -25,8 +27,9 @@ All notable changes to `skycli` will be documented in this file.
 
 ### Fixed
 
-- Fix commands that accepted `--json` after the command but still wrote human
-  text, including `doctor`, `config get`, `config set`, and `config unset`.
+- Fix commands and flags that accepted `--json` after the command but still
+  wrote human text, including `--doctor`, `config get`, `config set`, and
+  `config unset`.
 - Return structured JSON for JSON-mode usage errors and unknown commands.
 
 ## v0.1.4 - 2026-06-10
