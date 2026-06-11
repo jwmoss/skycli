@@ -4,7 +4,7 @@
 
 ## Start here
 
-- [Agent guide](agent-guide.md) - safe machine-readable usage patterns.
+- [Agent instructions](../AGENTS.md) - safe machine-readable usage patterns.
 - [Command index](commands/README.md) - one page for each public command.
 - [Health check flag](commands/doctor.md) - `skycli --doctor`.
 

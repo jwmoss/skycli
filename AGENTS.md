@@ -28,6 +28,15 @@ Work style: concise, direct, repo-first. Prefer short bullets over long prose.
 - Keep trace logging token-safe.
 - Bugs in auth, request construction, output formatting, or safety flags should get tests when practical.
 
+## Agent CLI Usage
+
+- Discover the command surface with `skycli commands --json` or `skycli --json`.
+- Run health checks as `skycli --doctor --json`; `skycli doctor` is only a compatibility alias.
+- Prefer `--readonly` for live account checks: `skycli --readonly frames list --json`.
+- Global flags such as `--json`, `--readonly`, and `--frame` may appear before or after commands, before a literal `--`.
+- Prefer placing `--dry-run` before the command when a subcommand also has its own `--dry-run` flag.
+- Use `make live-readonly-smoke` for real-account GET/read-only integration checks. Feature-specific private endpoints may be skipped when unavailable for the configured account.
+
 ## Live API Safety
 
 - Use `--readonly` or `--dry-run` first when exploring.

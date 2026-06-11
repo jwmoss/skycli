@@ -58,8 +58,8 @@ func buildCommandCatalog() commandCatalogDoc {
 		Usage:   "skycli [global flags] <command> [args]",
 		Docs: []string{
 			"README.md",
+			"AGENTS.md",
 			"docs/README.md",
-			"docs/agent-guide.md",
 			"docs/commands/README.md",
 		},
 		OutputContract: map[string]string{

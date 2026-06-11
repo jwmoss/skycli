@@ -10,7 +10,7 @@ All notable changes to `skycli` will be documented in this file.
   including docs paths, mutation markers, examples, global flags, environment
   variables, and output contracts.
 - Add a Crabbox-style docs tree under `docs/commands/` with one page for each
-  public command surface plus an agent guide.
+  public command surface, and document agent usage in `AGENTS.md`.
 - Add `make live-readonly-smoke`, a real-account GET/read-only integration
   check that validates JSON stdout for the command surface against the live API.
 

@@ -10,7 +10,7 @@ rotations, export/import, status, analytics, and watch.
 
 ## Docs
 
-- [Agent guide](docs/agent-guide.md)
+- [Agent instructions](AGENTS.md)
 - [Command index](docs/commands/README.md)
 - Machine-readable command catalog: `skycli commands --json`
 
