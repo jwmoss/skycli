@@ -25,7 +25,6 @@ var readOnlyCommands = map[string]bool{
 	"chore week":           true,
 	"config get":           true,
 	"config show":          true,
-	"doctor":               true,
 	"export":               true,
 	"frames":               true,
 	"frames avatars":       true,

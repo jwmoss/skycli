@@ -44,243 +44,57 @@ make build
 ./skycli version
 ```
 
-## Authentication
-
-Three ways to give `skycli` a token:
-
-### 1. Login with email/password
-
-```bash
-skycli auth login --email you@example.com
-```
-
-This performs a headless OAuth login, prompts for your password with terminal
-echo disabled, and stores the returned refresh token plus device fingerprint.
-The password is not stored.
-
-For non-interactive use:
-
-```bash
-printf '%s\n' "$SKYLIGHT_PASSWORD" | skycli auth login --email you@example.com --password-stdin
-```
-
-### 2. Import from the macOS app
-
-If the **Skylight** iOS app is installed and signed in on your Mac (it ships
-in the iOS-on-Mac App Store as `Skylight.app`):
-
-```bash
-skycli auth import-mac
-```
-
-Reads the access token, refresh token, and expiry from the app's MMKV store at
-`~/Library/Containers/com.skylightframe.mobile/Data/Documents/mmkv/mmkv.default`.
-On macOS, tokens are stored in Keychain by default and non-secret settings are
-written to `~/Library/Application Support/skycli/config.json` (mode 0600).
-
-The access token expires every ~2 hours. `auth import-mac` also saves the app's
-refresh token and device fingerprint, so future config-backed commands refresh
-automatically when the access token is expired or close to expiry.
-
-You can also refresh explicitly:
-
-```bash
-skycli auth refresh
-```
-
-### 3. Paste a token captured from a proxy
-
-If you can't use the login flow or Mac app, capture a token from your own
-account with **Proxyman**, **Charles**, or **mitmproxy**. Then:
-
-```bash
-skycli auth set-token                  # paste "Bearer <token>" or "Basic <token>"
-skycli auth set-token --scheme basic   # explicit scheme if pasting a bare token
-```
-
-Interactive token entry also disables terminal echo.
-
-### Secret storage
-
-Secret backends:
-
-- `keychain`: default on macOS; stores tokens in macOS Keychain.
-- `file`: encrypted file under the skycli config directory; requires
-  `SKYCLI_FILE_SECRET_KEY`.
-- `config`: stores tokens directly in the JSON config file, mostly for tests or
-  throwaway local use.
-
-```bash
-skycli config set secrets_backend file
-export SKYCLI_FILE_SECRET_KEY="$(openssl rand -base64 32)"
-skycli auth set-token
-```
-
-### Token resolution order
-
-Every call resolves the token: `--token` flag → `SKYLIGHT_ACCESS_TOKEN` env var
-→ secret store/config file. Only configured tokens are auto-refreshed; explicit
-flag/env tokens are used as-is.
-
-`skycli auth status` shows the current config, scheme, and expiry.
-
 ## Quick start
 
 ```bash
 skycli auth login --email you@example.com
-skycli frames                        # find your frame ID
+skycli frames list                   # find your frame ID
 skycli frames set-default 5312425
 skycli --doctor                      # verify token + connectivity
-skycli categories                    # show category IDs (one per kid + "Family")
-skycli chores list
+skycli categories                    # find category/person IDs
+skycli chores list --json
 ```
 
-## Commands
+## Command docs
 
-### Chores
+The full command surface is documented under
+[docs/commands](docs/commands/README.md).
+
+- [Auth](docs/commands/auth.md)
+- [Frames](docs/commands/frames.md)
+- [Chores](docs/commands/chores.md)
+- [Rewards](docs/commands/rewards.md)
+- [Calendar](docs/commands/calendar.md)
+- [Lists](docs/commands/lists.md) and [grocery](docs/commands/grocery.md)
+- [Meals](docs/commands/meals.md), [photos](docs/commands/photos.md), and
+  [routines](docs/commands/routines.md)
+- [Reports](docs/commands/status.md), [analytics](docs/commands/analytics.md),
+  [home](docs/commands/home.md), and [watch](docs/commands/watch.md)
+- [Export](docs/commands/export.md), [import](docs/commands/import.md),
+  [config](docs/commands/config.md), and [raw HTTP](docs/commands/raw.md)
+
+For scripts and agents:
 
 ```bash
-# List chores for today (default)
-skycli chores list
-
-# List for a date range, JSON output
-skycli --json chores list --after 2026-05-15 --before 2026-05-20
-skycli --json chores list --start-date 2026-05-15 --end-date 2026-05-20
-
-# Create one assigned chore
-skycli chores create \
-  --category 20431525 \
-  --summary "Vitamins" \
-  --recurrence daily
-
-# Create a Mon/Fri recurring chore
-skycli chores create \
-  --category 20431525 \
-  --summary "Water plants" \
-  --recurrence "weekly:MO,FR"
-
-# Create an Up-for-Grabs (claimable) chore with points
-skycli chores create-up-for-grabs \
-  --summary "Wash all windows" \
-  --points 10
-
-# Rename or adjust a recurring chore series
-skycli chores update --id 81779567 --summary "Mary TV Ticket" --points 1
-
-# Claim/complete one generated instance
-skycli chores claim --id 81739438-2026-05-18 --category 20435739
-skycli chores complete --id 81739438-2026-05-18
-skycli chores streak --days 30
-skycli chores week --date 2026-05-18
-
-# Delete a chore (recurring → all instances)
-skycli chores delete --id 81832922 --apply-to all
-
-# Bulk create from a JSON file, 5s between posts
-skycli chores bulk --file chores.json --sleep 5s
+skycli commands --json
+skycli --json
 ```
 
-`chores.json`:
+## Authentication
 
-```json
-[
-  {"summary": "Vitamins", "category_id": 20431525},
-  {"summary": "Water plants", "category_id": 20431525, "recurrence": "weekly:MO,FR"},
-  {"summary": "Wash all windows", "category_id": 20450972, "up_for_grabs": true, "reward_points": 10}
-]
-```
-
-Each item needs `summary` + `category_id`. Defaults: `recurrence: "daily"`,
-`start: today`, `up_for_grabs: false`, `reward_points: null`.
-
-True Up-for-Grabs chores use Skylight's `create_multiple` endpoint and have no
-category until someone claims them. Use `chores create-up-for-grabs` for those;
-the bulk format is for assigned chores.
-
-### Rewards
+Use one of the auth commands, then verify the account with `skycli --doctor`.
 
 ```bash
-# List rewards and point balances
-skycli rewards list
-skycli rewards points
-
-# Create one reward per child category
-skycli rewards create --name "TV Ticket" --points 10 --categories 20431525,20435739 --respawn
-
-# Rename/change a reward and redeem it
-skycli rewards update --id 9957645 --name "Levi TV Ticket" --points 10 --respawn
-skycli rewards redeem --id 9957645
+skycli auth login --email you@example.com
+skycli auth import-mac
+skycli auth set-token
+skycli auth status --json
 ```
 
-### Calendar
+See [auth docs](docs/commands/auth.md) for login, macOS import, token storage,
+and non-interactive usage.
 
-```bash
-skycli calendar list --start-date 2026-05-18 --end-date 2026-05-24
-skycli calendar week --date 2026-05-18
-skycli calendar create --title "Dentist" --start-at 2026-05-19T14:00:00-04:00 --end-at 2026-05-19T15:00:00-04:00
-skycli calendar create-countdown --title "Beach trip" --date 2026-07-01
-skycli calendar sources
-```
-
-### Lists And Grocery
-
-```bash
-skycli lists list
-skycli lists task-box-items
-skycli lists create --title "Errands" --kind to_do
-skycli lists add-item --list-id 123 --title "Return library books"
-skycli lists clear-completed --list-id 123
-
-skycli grocery create --title "Groceries"
-skycli grocery add --list-id 456 --title "Milk"
-skycli grocery organize --list-id 456
-skycli grocery order --list-id 456 --retailer costco
-```
-
-### Meals, Photos, Routines
-
-```bash
-skycli meals categories
-skycli meals create-recipe --title "Tacos" --ingredients "tortillas,beans,cheese"
-skycli meals create-sitting --summary "Taco night" --date 2026-05-20
-skycli meals add-to-grocery --recipe-id 789
-
-skycli photos list
-skycli photos upload --file ./photo.jpg --caption "May"
-skycli routines create --title "Bedtime" --assignee-id 20431525 --steps "Brush teeth,Read"
-```
-
-### Bounties, Rotations, Reports
-
-```bash
-skycli bounties create --title "Clean garage shelf" --points 5 --assignee-id 20431525 --reward-title "Garage bounty"
-skycli rotations create --chores "Trash,Dishes" --assignee-ids 20431525,20435739 --weeks 4 --points 1
-
-skycli status
-skycli analytics --days 30
-skycli home
-skycli watch --resources rewards,chores --interval 30s
-```
-
-### Export And Import
-
-```bash
-skycli export --output-file skylight-export.json --resources all --days 90
-skycli import --file skylight-export.json --dry-run
-skycli import --file skylight-export.json --resources rewards,chores
-```
-
-### Raw HTTP
-
-For newly discovered endpoints or fields before a typed flag exists:
-
-```bash
-skycli raw /api/frames/5312425/lists
-skycli raw --method POST --body '{"summary":"x"}' /api/frames/5312425/task_box/items
-echo '{"summary":"x"}' | skycli raw --method POST --body-file - /api/frames/5312425/task_box/items
-```
-
-### Global flags
+## Global flags
 
 | Flag             | Default | Notes |
 |------------------|---------|-------|

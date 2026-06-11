@@ -65,7 +65,7 @@ func buildCommandCatalog() commandCatalogDoc {
 		OutputContract: map[string]string{
 			"stdout":       "Primary command data only. In --json mode stdout is one JSON document unless a command intentionally streams events.",
 			"stderr":       "Diagnostics, prompts, warnings, trace logs, and human guidance.",
-			"doctor_flag":  "Use skycli --doctor for readonly token/API connectivity checks. skycli doctor remains as a compatibility command.",
+			"doctor_flag":  "Use skycli --doctor for readonly token/API connectivity checks.",
 			"json_flag":    "Global flag. It may appear before or after commands, before a literal --.",
 			"plain_flag":   "Global flag for stable TSV/plain output where available. Mutually exclusive with --json.",
 			"exit_codes":   "0 success, 1 runtime/API failure, 2 invalid usage.",

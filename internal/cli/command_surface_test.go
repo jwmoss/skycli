@@ -49,7 +49,6 @@ func TestCommandSurfaceJSONModeWithPostCommandFlag(t *testing.T) {
 		{"config set", []string{"config", "set", "api_version", "2026-04-15", "--json"}, ""},
 		{"config unset", []string{"config", "unset", "default_frame_id", "--json"}, ""},
 		{"doctor flag", []string{"--doctor", "--json"}, ""},
-		{"doctor", []string{"doctor", "--json"}, ""},
 		{"frames list", []string{"frames", "list", "--json"}, ""},
 		{"frames show", []string{"frames", "show", "--json"}, ""},
 		{"frames devices", []string{"frames", "devices", "--json"}, ""},
@@ -178,6 +177,25 @@ func TestJSONUsageErrorsAreStructured(t *testing.T) {
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("usage error leaked to stderr in JSON mode: %s", stderr.String())
+	}
+}
+
+func TestDoctorCommandIsNotSupported(t *testing.T) {
+	cfgPath := writeTestConfig(t, config.Config{BaseURL: "https://example.invalid", AccessToken: "test-token"})
+	var stdout, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"--config", cfgPath, "doctor", "--json"}, strings.NewReader(""), &stdout, &stderr)
+	if code != exitUsage {
+		t.Fatalf("exit code: got %d\nstdout=%s\nstderr=%s", code, stdout.String(), stderr.String())
+	}
+	var got map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("stdout is not JSON: %v\n%s", err, stdout.String())
+	}
+	if got["error"] != "unknown command: doctor" {
+		t.Fatalf("error = %v, want unknown command: doctor", got["error"])
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("unknown command leaked to stderr in JSON mode: %s", stderr.String())
 	}
 }
 

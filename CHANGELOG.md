@@ -16,8 +16,7 @@ All notable changes to `skycli` will be documented in this file.
 
 ### Changed
 
-- Prefer `skycli --doctor` as the public health-check interface. The old
-  `skycli doctor` path remains as a compatibility alias.
+- Make `skycli --doctor` the only health-check interface.
 - Allow global flags such as `--json`, `--readonly`, and `--frame` after the
   command so agent-generated invocations like `skycli chores list --json`
   behave as expected.

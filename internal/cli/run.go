@@ -346,9 +346,6 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		out:    newPrinter(stdout, g.asJSON, g.plain),
 	}
 
-	if cmd == "doctor" {
-		return runDoctor(rc, sub)
-	}
 	for _, c := range topLevelCommands() {
 		if c.name == cmd {
 			return c.run(rc, sub)

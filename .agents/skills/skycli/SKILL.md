@@ -14,7 +14,7 @@ private API behavior before adding typed command support.
 ```bash
 skycli version
 skycli auth status
-skycli --json doctor
+skycli --doctor --json
 skycli --json frames list
 skycli --json categories
 ```
@@ -48,8 +48,8 @@ Command guards:
 ```bash
 skycli --readonly --json raw /api/frames/<frame-id>/task_box/items
 skycli --dry-run chores create --category <category-id> --summary "Example"
-skycli --allow-commands chores.list,rewards.list --json chores list
-skycli --deny-commands chores.delete,rewards.redeem --json rewards list
+skycli --allow-commands "chores list,rewards list" --json chores list
+skycli --deny-commands "chores delete,rewards redeem" --json rewards list
 ```
 
 ## Auth

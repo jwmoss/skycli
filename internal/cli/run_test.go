@@ -38,7 +38,7 @@ func TestDoctorUsesEnvAccessToken(t *testing.T) {
 	t.Setenv("SKYLIGHT_ACCESS_TOKEN", "env-token")
 
 	var stdout, stderr bytes.Buffer
-	code := Run(context.Background(), []string{"--config", cfgPath, "doctor"}, strings.NewReader(""), &stdout, &stderr)
+	code := Run(context.Background(), []string{"--config", cfgPath, "--doctor"}, strings.NewReader(""), &stdout, &stderr)
 	if code != exitOK {
 		t.Fatalf("exit code: got %d\nstdout=%s\nstderr=%s", code, stdout.String(), stderr.String())
 	}
@@ -63,7 +63,7 @@ func TestDoctorJSONReportsFailedCheckAsNotOK(t *testing.T) {
 	})
 
 	var stdout, stderr bytes.Buffer
-	code := Run(context.Background(), []string{"--config", cfgPath, "--json", "doctor"}, strings.NewReader(""), &stdout, &stderr)
+	code := Run(context.Background(), []string{"--config", cfgPath, "--doctor", "--json"}, strings.NewReader(""), &stdout, &stderr)
 	if code != exitErr {
 		t.Fatalf("exit code: got %d\nstdout=%s\nstderr=%s", code, stdout.String(), stderr.String())
 	}
@@ -131,7 +131,7 @@ func TestExpiredConfigTokenAutoRefreshes(t *testing.T) {
 	})
 
 	var stdout, stderr bytes.Buffer
-	code := Run(context.Background(), []string{"--config", cfgPath, "doctor"}, strings.NewReader(""), &stdout, &stderr)
+	code := Run(context.Background(), []string{"--config", cfgPath, "--doctor"}, strings.NewReader(""), &stdout, &stderr)
 	if code != exitOK {
 		t.Fatalf("exit code: got %d\nstdout=%s\nstderr=%s", code, stdout.String(), stderr.String())
 	}

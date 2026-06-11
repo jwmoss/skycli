@@ -16,4 +16,4 @@ Human mode prints the health-check summary. JSON mode emits one document with th
 
 ## Notes
 
-`--doctor` is the public interface. `skycli doctor` remains available as a compatibility alias for older scripts, but docs and automation should prefer the root flag.
+`--doctor` is a root flag, not a subcommand.
