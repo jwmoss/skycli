@@ -8,6 +8,12 @@ Unofficial. Not affiliated with Skylight. Use with accounts you own.
 rewards, calendar events, lists/grocery, meals, photos, routines, bounties,
 rotations, export/import, status, analytics, and watch.
 
+## Docs
+
+- [Agent guide](docs/agent-guide.md)
+- [Command index](docs/commands/README.md)
+- Machine-readable command catalog: `skycli commands --json`
+
 ## Install
 
 ### Homebrew
@@ -124,7 +130,7 @@ flag/env tokens are used as-is.
 skycli auth login --email you@example.com
 skycli frames                        # find your frame ID
 skycli frames set-default 5312425
-skycli doctor                        # verify token + connectivity
+skycli --doctor                      # verify token + connectivity
 skycli categories                    # show category IDs (one per kid + "Family")
 skycli chores list
 ```
@@ -212,7 +218,7 @@ skycli rewards redeem --id 9957645
 skycli calendar list --start-date 2026-05-18 --end-date 2026-05-24
 skycli calendar week --date 2026-05-18
 skycli calendar create --title "Dentist" --start-at 2026-05-19T14:00:00-04:00 --end-at 2026-05-19T15:00:00-04:00
-skycli calendar create-countdown --title "Beach trip" --start-at 2026-07-01
+skycli calendar create-countdown --title "Beach trip" --date 2026-07-01
 skycli calendar sources
 ```
 
@@ -279,6 +285,7 @@ echo '{"summary":"x"}' | skycli raw --method POST --body-file - /api/frames/5312
 | Flag             | Default | Notes |
 |------------------|---------|-------|
 | `--config PATH`  | `$XDG_CONFIG_HOME/skycli/config.json` | Override config path |
+| `--doctor`       | off     | Run readonly token/API connectivity checks and exit |
 | `--json`         | off     | Emit JSON to stdout |
 | `--plain`        | off     | Emit stable TSV/plain output where available |
 | `--timeout DUR`  | 30s     | HTTP timeout |
@@ -292,10 +299,26 @@ echo '{"summary":"x"}' | skycli raw --method POST --body-file - /api/frames/5312
 
 ## Output for agents
 
-Every command supports `--json`; table-style commands also support `--plain`
-for stable TSV. Data goes to stdout, logs/errors to stderr. Exit codes: `0`
-success, `1` runtime error, `2` usage error. `--trace-http` emits one line per
-request to stderr without including the bearer token.
+Use `skycli commands --json` to discover the command surface and docs paths.
+Every bounded command supports `--json`; table-style commands also support
+`--plain` for stable TSV. Data goes to stdout, logs/errors to stderr. Exit
+codes: `0` success, `1` runtime error, `2` usage error. `--trace-http` emits
+one line per request to stderr without including the bearer token.
+
+Global flags such as `--json`, `--readonly`, and `--frame` may appear before or
+after the command, before a literal `--`:
+
+```bash
+skycli chores list --json
+skycli --json chores list
+skycli chores list --readonly --json
+```
+
+Run real-account read-only integration checks with:
+
+```bash
+make live-readonly-smoke
+```
 
 ## Development
 
@@ -305,6 +328,7 @@ make test
 make vet
 make ci
 make build
+make live-readonly-smoke
 make release-check
 make release-snapshot
 ```

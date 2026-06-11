@@ -688,6 +688,19 @@ func TestReadonlyBlocksMutatingCommands(t *testing.T) {
 	}
 }
 
+func TestReadonlyAllowsReportCommands(t *testing.T) {
+	for _, args := range [][]string{
+		{"analytics", "--days", "7"},
+		{"home", "--date", "2026-06-10"},
+		{"status"},
+		{"watch", "--once"},
+	} {
+		if !isReadOnlyInvocation(args) {
+			t.Fatalf("isReadOnlyInvocation(%v) = false, want true", args)
+		}
+	}
+}
+
 func TestAllowCommandsBlocksUnexpectedCommand(t *testing.T) {
 	cfgPath := writeTestConfig(t, config.Config{})
 

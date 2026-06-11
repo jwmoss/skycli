@@ -63,6 +63,17 @@ func runWatch(rc *runCtx, args []string) int {
 		_ = saveWatchState(statePath, state)
 	}
 	if *once {
+		if rc.g.asJSON {
+			_ = rc.out.JSON(map[string]any{
+				"seeded":    true,
+				"resources": resources,
+				"seen": map[string]int{
+					"rewards":  len(state.SeenRewardIDs),
+					"chores":   len(state.SeenChoreIDs),
+					"calendar": len(state.SeenEventIDs),
+				},
+			})
+		}
 		return exitOK
 	}
 	if !rc.g.asJSON {
@@ -146,7 +157,14 @@ func pollWatchRewards(rc *runCtx, c *skylight.Client, frameID int64, state *watc
 }
 
 func pollWatchChores(rc *runCtx, c *skylight.Client, frameID int64, state *watchState) {
-	chores, err := c.ListChores(rc.ctx, frameID, skylight.ChoreFilter{Date: today(), Status: "complete", IncludeLate: true})
+	todayDate := today()
+	chores, err := c.ListChores(rc.ctx, frameID, skylight.ChoreFilter{
+		Date:        todayDate,
+		After:       todayDate,
+		Before:      todayDate,
+		Status:      "complete",
+		IncludeLate: true,
+	})
 	if err != nil {
 		fmt.Fprintf(rc.stderr, "watch chores: %v\n", err)
 		return

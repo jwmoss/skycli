@@ -4,6 +4,32 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Add `skycli commands` and `skycli --json` command-catalog output for agents,
+  including docs paths, mutation markers, examples, global flags, environment
+  variables, and output contracts.
+- Add a Crabbox-style docs tree under `docs/commands/` with one page for each
+  public command surface plus an agent guide.
+- Add `make live-readonly-smoke`, a real-account GET/read-only integration
+  check that validates JSON stdout for the command surface against the live API.
+
+### Changed
+
+- Prefer `skycli --doctor` as the public health-check interface. The old
+  `skycli doctor` path remains as a compatibility alias.
+- Allow global flags such as `--json`, `--readonly`, and `--frame` after the
+  command so agent-generated invocations like `skycli chores list --json`
+  behave as expected.
+- Make `watch --once --json` emit a bounded JSON status document instead of
+  streaming human output.
+
+### Fixed
+
+- Fix commands that accepted `--json` after the command but still wrote human
+  text, including `doctor`, `config get`, `config set`, and `config unset`.
+- Return structured JSON for JSON-mode usage errors and unknown commands.
+
 ## v0.1.4 - 2026-06-10
 
 ### Fixed

@@ -7,7 +7,9 @@ import (
 )
 
 func runVersion(rc *runCtx, args []string) int {
-	_ = args
+	if len(args) > 0 {
+		return usage(rc, "skycli version takes no arguments")
+	}
 	v, c, d := currentVersion()
 	if rc.g.asJSON {
 		_ = rc.out.JSON(map[string]string{

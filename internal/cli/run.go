@@ -32,6 +32,7 @@ type globals struct {
 	configPath string
 	asJSON     bool
 	plain      bool
+	doctor     bool
 	timeout    time.Duration
 	traceHTTP  bool
 	dryRun     bool
@@ -46,6 +47,7 @@ func (g *globals) register(fs *flag.FlagSet) {
 	fs.StringVar(&g.configPath, "config", "", "path to config.json (default: $XDG_CONFIG_HOME/skycli/config.json)")
 	fs.BoolVar(&g.asJSON, "json", false, "emit JSON to stdout (default: human-readable table/text)")
 	fs.BoolVar(&g.plain, "plain", false, "emit stable TSV/plain output where available")
+	fs.BoolVar(&g.doctor, "doctor", false, "run readonly token/API connectivity checks and exit")
 	fs.DurationVar(&g.timeout, "timeout", 30*time.Second, "HTTP timeout")
 	fs.BoolVar(&g.traceHTTP, "trace-http", false, "log every HTTP request to stderr (no secrets)")
 	fs.BoolVar(&g.dryRun, "dry-run", false, "refuse all non-GET HTTP calls")
@@ -198,6 +200,7 @@ type command struct {
 
 func topLevelCommands() []command {
 	return []command{
+		{"commands", "print the command catalog for agents", runCommands},
 		{"auth", "manage credentials (login, import-mac, refresh, set-token, status)", runAuth},
 		{"frames", "list / inspect / set-default frame", runFrames},
 		{"frame", "alias for frames", runFrames},
@@ -229,32 +232,40 @@ func topLevelCommands() []command {
 		{"import", "import frame data from a skycli export", runImport},
 		{"config", "show or update skycli configuration", runConfig},
 		{"raw", "send a raw HTTP request to the Skylight API", runRaw},
-		{"doctor", "verify token + connectivity", runDoctor},
 		{"version", "print version", runVersion},
 	}
 }
 
 func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	args = normalizeRootFlags(args)
+	jsonRequested := hasRootFlag(args, "json")
 	g := &globals{}
 	root := flag.NewFlagSet("skycli", flag.ContinueOnError)
-	root.SetOutput(stderr)
+	if jsonRequested {
+		root.SetOutput(io.Discard)
+	} else {
+		root.SetOutput(stderr)
+	}
 	g.register(root)
 	root.Usage = func() {
-		fmt.Fprintln(stderr, "skycli — unofficial CLI for the Skylight Calendar private API")
-		fmt.Fprintln(stderr, "")
-		fmt.Fprintln(stderr, "Usage: skycli [global flags] <command> [args]")
-		fmt.Fprintln(stderr, "")
-		fmt.Fprintln(stderr, "Global flags:")
-		root.PrintDefaults()
-		fmt.Fprintln(stderr, "")
-		fmt.Fprintln(stderr, "Commands:")
-		for _, c := range topLevelCommands() {
-			fmt.Fprintf(stderr, "  %-12s %s\n", c.name, c.summary)
+		if !jsonRequested {
+			printRootUsage(stderr, root)
 		}
-		fmt.Fprintln(stderr, "")
-		fmt.Fprintln(stderr, "Env: SKYLIGHT_ACCESS_TOKEN, SKYLIGHT_AUTH_SCHEME, SKYLIGHT_FRAME_ID")
 	}
 	if err := root.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			if g.asJSON {
+				_ = newPrinter(stdout, true, false).JSON(buildCommandCatalog())
+			}
+			return exitOK
+		}
+		if g.asJSON {
+			_ = newPrinter(stdout, true, false).JSON(map[string]any{
+				"error":     err.Error(),
+				"kind":      "usage",
+				"exit_code": exitUsage,
+			})
+		}
 		return exitUsage
 	}
 	if os.Getenv("SKYCLI_READONLY") == "1" || strings.EqualFold(os.Getenv("SKYCLI_READONLY"), "true") {
@@ -271,7 +282,44 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return exitUsage
 	}
 	rest := root.Args()
+	if g.doctor {
+		if len(rest) > 0 {
+			if g.asJSON {
+				_ = newPrinter(stdout, true, false).JSON(map[string]any{
+					"error":     "--doctor cannot be combined with a command",
+					"kind":      "usage",
+					"exit_code": exitUsage,
+				})
+			} else {
+				fmt.Fprintln(stderr, "--doctor cannot be combined with a command")
+			}
+			return exitUsage
+		}
+		cfg, err := config.Load(g.configPath)
+		if err != nil {
+			if g.asJSON {
+				_ = newPrinter(stdout, true, false).JSON(map[string]any{"error": err.Error()})
+			} else {
+				fmt.Fprintln(stderr, "error:", err)
+			}
+			return exitErr
+		}
+		rc := &runCtx{
+			ctx:    ctx,
+			stdin:  stdin,
+			stdout: stdout,
+			stderr: stderr,
+			g:      g,
+			cfg:    cfg,
+			out:    newPrinter(stdout, g.asJSON, g.plain),
+		}
+		return runDoctor(rc, nil)
+	}
 	if len(rest) == 0 {
+		if g.asJSON {
+			_ = newPrinter(stdout, true, false).JSON(buildCommandCatalog())
+			return exitOK
+		}
 		root.Usage()
 		return exitUsage
 	}
@@ -298,10 +346,23 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		out:    newPrinter(stdout, g.asJSON, g.plain),
 	}
 
+	if cmd == "doctor" {
+		return runDoctor(rc, sub)
+	}
 	for _, c := range topLevelCommands() {
 		if c.name == cmd {
 			return c.run(rc, sub)
 		}
+	}
+	if g.asJSON {
+		_ = rc.out.JSON(map[string]any{
+			"error":     "unknown command: " + cmd,
+			"kind":      "usage",
+			"command":   cmd,
+			"available": commandNames(),
+			"exit_code": exitUsage,
+		})
+		return exitUsage
 	}
 	fmt.Fprintf(stderr, "unknown command: %s\n", cmd)
 	root.Usage()
@@ -321,9 +382,120 @@ func fail(rc *runCtx, err error) int {
 // usage prints help to stderr and returns exitUsage.
 func usage(rc *runCtx, msg string) int {
 	if msg != "" {
-		fmt.Fprintln(rc.stderr, msg)
+		if rc.g.asJSON {
+			_ = rc.out.JSON(map[string]any{
+				"error":     msg,
+				"kind":      "usage",
+				"exit_code": exitUsage,
+			})
+		} else {
+			fmt.Fprintln(rc.stderr, msg)
+		}
 	}
 	return exitUsage
+}
+
+func printRootUsage(w io.Writer, root *flag.FlagSet) {
+	fmt.Fprintln(w, "skycli — unofficial CLI for the Skylight Calendar private API")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "Usage: skycli [global flags] <command> [args]")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "Global flags:")
+	root.PrintDefaults()
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "Commands:")
+	for _, c := range topLevelCommands() {
+		fmt.Fprintf(w, "  %-12s %s\n", c.name, c.summary)
+	}
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "Env: SKYLIGHT_ACCESS_TOKEN, SKYLIGHT_AUTH_SCHEME, SKYLIGHT_FRAME_ID")
+}
+
+var rootBoolFlags = map[string]bool{
+	"doctor":     true,
+	"json":       true,
+	"plain":      true,
+	"readonly":   true,
+	"trace-http": true,
+}
+
+var rootValueFlags = map[string]bool{
+	"allow-commands": true,
+	"config":         true,
+	"deny-commands":  true,
+	"frame":          true,
+	"timeout":        true,
+	"token":          true,
+}
+
+func normalizeRootFlags(args []string) []string {
+	if len(args) == 0 {
+		return args
+	}
+	global := make([]string, 0, len(args))
+	rest := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			rest = append(rest, args[i:]...)
+			break
+		}
+		name, ok, hasInlineValue := splitFlagName(arg)
+		if !ok {
+			rest = append(rest, arg)
+			continue
+		}
+		if rootBoolFlags[name] {
+			global = append(global, arg)
+			continue
+		}
+		if rootValueFlags[name] {
+			global = append(global, arg)
+			if !hasInlineValue && i+1 < len(args) {
+				i++
+				global = append(global, args[i])
+			}
+			continue
+		}
+		rest = append(rest, arg)
+	}
+	return append(global, rest...)
+}
+
+func hasRootFlag(args []string, want string) bool {
+	for _, arg := range args {
+		if arg == "--" {
+			return false
+		}
+		name, ok, _ := splitFlagName(arg)
+		if ok && name == want {
+			return true
+		}
+	}
+	return false
+}
+
+func splitFlagName(arg string) (string, bool, bool) {
+	if arg == "" || arg == "-" || !strings.HasPrefix(arg, "-") {
+		return "", false, false
+	}
+	name := strings.TrimLeft(arg, "-")
+	if name == "" {
+		return "", false, false
+	}
+	if idx := strings.IndexByte(name, '='); idx >= 0 {
+		return name[:idx], true, true
+	}
+	return name, true, false
+}
+
+func commandNames() []string {
+	commands := topLevelCommands()
+	names := make([]string, 0, len(commands))
+	for _, c := range commands {
+		names = append(names, c.name)
+	}
+	return names
 }
 
 func parseInt64Flag(s, name string) (int64, error) {

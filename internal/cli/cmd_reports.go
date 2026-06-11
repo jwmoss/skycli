@@ -70,7 +70,14 @@ func runStatus(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, fmt.Errorf("get frame: %w", err))
 	}
-	chores, err := c.ListChores(rc.ctx, frameID, skylight.ChoreFilter{Date: todayDate, Status: "pending", IncludeLate: true, IncludeUpForGrabs: true})
+	chores, err := c.ListChores(rc.ctx, frameID, skylight.ChoreFilter{
+		Date:              todayDate,
+		After:             todayDate,
+		Before:            todayDate,
+		Status:            "pending",
+		IncludeLate:       true,
+		IncludeUpForGrabs: true,
+	})
 	if err != nil {
 		return fail(rc, fmt.Errorf("list chores: %w", err))
 	}
@@ -311,7 +318,15 @@ func runHome(rc *runCtx, args []string) int {
 	}
 	var chores []skylight.Chore
 	if !*noTasks {
-		chores, err = c.ListChores(rc.ctx, frameID, skylight.ChoreFilter{Date: today(), Status: "pending", IncludeLate: true, IncludeUpForGrabs: true})
+		todayDate := today()
+		chores, err = c.ListChores(rc.ctx, frameID, skylight.ChoreFilter{
+			Date:              todayDate,
+			After:             todayDate,
+			Before:            todayDate,
+			Status:            "pending",
+			IncludeLate:       true,
+			IncludeUpForGrabs: true,
+		})
 		if err != nil {
 			return fail(rc, fmt.Errorf("list chores: %w", err))
 		}

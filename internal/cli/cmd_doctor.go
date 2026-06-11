@@ -8,7 +8,9 @@ import (
 )
 
 func runDoctor(rc *runCtx, args []string) int {
-	_ = args
+	if len(args) > 0 {
+		return usage(rc, "skycli --doctor takes no arguments")
+	}
 	checks := []map[string]any{}
 
 	_, _, tokenErr := rc.requireToken()
