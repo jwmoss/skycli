@@ -123,16 +123,19 @@ func isReadOnlyInvocation(args []string) bool {
 func rawIsGET(args []string) bool {
 	method := http.MethodGet
 	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--method", "-method":
-			if i+1 < len(args) {
-				method = strings.ToUpper(args[i+1])
-				i++
+		name, ok, hasInlineValue := splitFlagName(args[i])
+		if !ok || name != "method" {
+			continue
+		}
+		if hasInlineValue {
+			if idx := strings.IndexByte(args[i], '='); idx >= 0 {
+				method = strings.ToUpper(args[i][idx+1:])
 			}
-		default:
-			if strings.HasPrefix(args[i], "--method=") {
-				method = strings.ToUpper(strings.TrimPrefix(args[i], "--method="))
-			}
+			continue
+		}
+		if i+1 < len(args) {
+			i++
+			method = strings.ToUpper(args[i])
 		}
 	}
 	return method == http.MethodGet

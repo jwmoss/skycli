@@ -105,7 +105,7 @@ and non-interactive usage.
 | `--timeout DUR`  | 30s     | HTTP timeout |
 | `--trace-http`   | off     | Log every request to stderr |
 | `--dry-run`      | off     | Refuse non-GET HTTP calls |
-| `--readonly`     | off     | Block mutating commands |
+| `--readonly`     | off     | Block mutating commands and refuse non-GET HTTP calls |
 | `--allow-commands LIST` | — | Comma-separated command allowlist |
 | `--deny-commands LIST`  | — | Comma-separated command denylist |
 | `--token TOK`    | —       | Token override (also `SKYLIGHT_ACCESS_TOKEN`) |

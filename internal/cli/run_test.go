@@ -785,3 +785,160 @@ func readTestConfig(t *testing.T, path string) config.Config {
 	}
 	return cfg
 }
+
+func TestRawIsGETHandlesAllMethodFlagForms(t *testing.T) {
+	cases := []struct {
+		args []string
+		want bool
+	}{
+		{[]string{"/api/x"}, true},
+		{[]string{"--method", "GET", "/api/x"}, true},
+		{[]string{"-method=GET", "/api/x"}, true},
+		{[]string{"--method", "POST", "/api/x"}, false},
+		{[]string{"-method", "POST", "/api/x"}, false},
+		{[]string{"--method=POST", "/api/x"}, false},
+		{[]string{"-method=POST", "/api/x"}, false},
+	}
+	for _, c := range cases {
+		if got := rawIsGET(c.args); got != c.want {
+			t.Errorf("rawIsGET(%v) = %v, want %v", c.args, got, c.want)
+		}
+	}
+}
+
+func TestReadonlyBlocksRawSingleDashMethodEquals(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		fmt.Fprint(w, `{}`)
+	}))
+	defer srv.Close()
+
+	cfgPath := writeTestConfig(t, config.Config{BaseURL: srv.URL, AccessToken: "tok"})
+
+	var stdout, stderr bytes.Buffer
+	args := []string{"--config", cfgPath, "--readonly", "raw", "-method=POST", "/api/x"}
+	code := Run(context.Background(), args, strings.NewReader(""), &stdout, &stderr)
+	if code != exitErr {
+		t.Fatalf("exit code: got %d\nstdout=%s\nstderr=%s", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "readonly") {
+		t.Fatalf("stderr = %s", stderr.String())
+	}
+	if hits != 0 {
+		t.Fatalf("readonly raw -method=POST reached the server %d times", hits)
+	}
+}
+
+func TestRefreshSkipsWhenAnotherProcessAlreadyRefreshed(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected request to %s — refresh should have been skipped", r.URL.Path)
+		fmt.Fprint(w, `{}`)
+	}))
+	defer srv.Close()
+
+	futureExp := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+	cfgPath := writeTestConfig(t, config.Config{
+		BaseURL:           srv.URL,
+		AccessToken:       "fresh-token",
+		RefreshToken:      "rotated-refresh",
+		AccessTokenExpAt:  futureExp,
+		DeviceFingerprint: "fp",
+	})
+
+	staleCfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	staleCfg.AccessToken = "stale-token"
+	staleCfg.RefreshToken = "stale-refresh"
+	staleCfg.AccessTokenExpAt = time.Now().Add(-time.Hour)
+
+	var stdout, stderr bytes.Buffer
+	rc := &runCtx{
+		ctx:    context.Background(),
+		stdin:  strings.NewReader(""),
+		stdout: &stdout,
+		stderr: &stderr,
+		g:      &globals{configPath: cfgPath, timeout: time.Second},
+		cfg:    staleCfg,
+		out:    newPrinter(&stdout, false, false),
+	}
+	tok, expiresAt, err := rc.refreshConfiguredToken(false)
+	if err != nil {
+		t.Fatalf("refreshConfiguredToken: %v", err)
+	}
+	if tok.AccessToken != "fresh-token" || tok.RefreshToken != "rotated-refresh" {
+		t.Fatalf("token = %+v, want credentials reloaded from disk", tok)
+	}
+	if !expiresAt.Equal(futureExp) {
+		t.Fatalf("expiresAt = %v, want %v", expiresAt, futureExp)
+	}
+}
+
+func TestAcquireLockFileSerializes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "refresh.lock")
+	unlock, err := acquireLockFile(path)
+	if err != nil {
+		t.Fatalf("first acquire: %v", err)
+	}
+
+	acquired := make(chan func(), 1)
+	go func() {
+		second, err := acquireLockFile(path)
+		if err != nil {
+			t.Errorf("second acquire: %v", err)
+			return
+		}
+		acquired <- second
+	}()
+
+	select {
+	case <-acquired:
+		t.Fatal("second acquire succeeded while lock was held")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	unlock()
+	select {
+	case second := <-acquired:
+		second()
+	case <-time.After(2 * time.Second):
+		t.Fatal("second acquire never completed after release")
+	}
+}
+
+func TestClientCarriesReadonlyBackstop(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		fmt.Fprint(w, `{}`)
+	}))
+	defer srv.Close()
+
+	cfgPath := writeTestConfig(t, config.Config{BaseURL: srv.URL, AccessToken: "tok"})
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+	rc := &runCtx{
+		ctx:    context.Background(),
+		stdout: &stdout,
+		stderr: &stderr,
+		g:      &globals{configPath: cfgPath, readOnly: true, timeout: time.Second},
+		cfg:    cfg,
+		out:    newPrinter(&stdout, false, false),
+	}
+	c, err := rc.client()
+	if err != nil {
+		t.Fatalf("client: %v", err)
+	}
+	if _, err := c.Do(context.Background(), http.MethodPost, "/api/x", nil, nil); err == nil ||
+		!strings.Contains(err.Error(), "readonly: refusing") {
+		t.Fatalf("Do(POST) err = %v, want readonly refusal", err)
+	}
+	if hits != 0 {
+		t.Fatalf("readonly client reached the server %d times", hits)
+	}
+}

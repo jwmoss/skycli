@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -189,5 +190,31 @@ func TestRewardUpdateAndRedeemEndpoints(t *testing.T) {
 	}
 	if !sawUpdate || !sawRedeem {
 		t.Fatalf("sawUpdate=%v sawRedeem=%v", sawUpdate, sawRedeem)
+	}
+}
+
+func TestDoReadOnlyRefusesNonGET(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		fmt.Fprint(w, `{}`)
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "tok", WithReadOnly(true))
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
+		_, err := c.Do(context.Background(), method, "/api/x", nil, nil)
+		if err == nil || !strings.Contains(err.Error(), "readonly: refusing") {
+			t.Fatalf("readonly Do(%s): err = %v, want readonly refusal", method, err)
+		}
+	}
+	if hits != 0 {
+		t.Fatalf("readonly client sent %d mutating requests", hits)
+	}
+	if _, err := c.Do(context.Background(), http.MethodGet, "/api/x", nil, nil); err != nil {
+		t.Fatalf("readonly Do(GET): %v", err)
+	}
+	if hits != 1 {
+		t.Fatalf("GET hits = %d, want 1", hits)
 	}
 }

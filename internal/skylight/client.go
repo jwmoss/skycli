@@ -23,6 +23,7 @@ type Client struct {
 	userAgent  string
 	trace      func(method, url string, status int, dur time.Duration)
 	dryRun     bool
+	readOnly   bool
 }
 
 type Option func(*Client)
@@ -37,6 +38,12 @@ func WithTrace(fn func(method, url string, status int, dur time.Duration)) Optio
 
 func WithDryRun(on bool) Option {
 	return func(c *Client) { c.dryRun = on }
+}
+
+// WithReadOnly makes Do refuse non-GET requests. This backstops the CLI-level
+// command allowlist so --readonly cannot be bypassed by argv parsing drift.
+func WithReadOnly(on bool) Option {
+	return func(c *Client) { c.readOnly = on }
 }
 
 func WithUserAgent(ua string) Option {
@@ -86,8 +93,13 @@ func (e *APIError) Error() string {
 }
 
 func (c *Client) Do(ctx context.Context, method, path string, query url.Values, body any) ([]byte, error) {
-	if c.dryRun && method != http.MethodGet {
-		return nil, fmt.Errorf("dry-run: refusing %s %s", method, path)
+	if method != http.MethodGet {
+		if c.dryRun {
+			return nil, fmt.Errorf("dry-run: refusing %s %s", method, path)
+		}
+		if c.readOnly {
+			return nil, fmt.Errorf("readonly: refusing %s %s", method, path)
+		}
 	}
 	u := path
 	if !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://") {

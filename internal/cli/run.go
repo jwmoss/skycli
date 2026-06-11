@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -51,7 +52,7 @@ func (g *globals) register(fs *flag.FlagSet) {
 	fs.DurationVar(&g.timeout, "timeout", 30*time.Second, "HTTP timeout")
 	fs.BoolVar(&g.traceHTTP, "trace-http", false, "log every HTTP request to stderr (no secrets)")
 	fs.BoolVar(&g.dryRun, "dry-run", false, "refuse all non-GET HTTP calls")
-	fs.BoolVar(&g.readOnly, "readonly", false, "block mutating commands")
+	fs.BoolVar(&g.readOnly, "readonly", false, "block mutating commands and non-GET HTTP calls")
 	fs.StringVar(&g.allow, "allow-commands", "", "comma-separated allowed command prefixes")
 	fs.StringVar(&g.deny, "deny-commands", "", "comma-separated denied command prefixes")
 	fs.StringVar(&g.token, "token", "", "override access token (also: SKYLIGHT_ACCESS_TOKEN)")
@@ -79,7 +80,7 @@ func (rc *runCtx) requireToken() (string, string, error) {
 		return env, schemeOrDefault(os.Getenv("SKYLIGHT_AUTH_SCHEME")), nil
 	}
 	if rc.shouldRefreshConfiguredToken() {
-		if _, _, err := rc.refreshConfiguredToken(); err != nil {
+		if _, _, err := rc.refreshConfiguredToken(false); err != nil {
 			if rc.cfg.AccessToken == "" || tokenExpired(rc.cfg.AccessTokenExpAt) {
 				return "", "", fmt.Errorf("refresh access token: %w", err)
 			}
@@ -106,12 +107,31 @@ func (rc *runCtx) shouldRefreshConfiguredToken() bool {
 	return !rc.cfg.AccessTokenExpAt.IsZero() && time.Now().Add(refreshSkew).After(rc.cfg.AccessTokenExpAt)
 }
 
-func (rc *runCtx) refreshConfiguredToken() (*skylight.OAuthTokenResponse, time.Time, error) {
+// refreshConfiguredToken redeems the stored refresh token for a new access
+// token. Skylight rotates refresh tokens, so concurrent invocations are
+// serialized with a file lock; unless force is set, credentials are re-read
+// after acquiring the lock and the network call is skipped when another
+// invocation already refreshed.
+func (rc *runCtx) refreshConfiguredToken(force bool) (*skylight.OAuthTokenResponse, time.Time, error) {
 	if rc.cfg.RefreshToken == "" {
 		return nil, time.Time{}, errors.New("no refresh token configured")
 	}
 	if rc.cfg.DeviceFingerprint == "" {
 		return nil, time.Time{}, errors.New("no device fingerprint configured — re-run `skycli auth import-mac`")
+	}
+	if unlock, err := acquireLockFile(rc.refreshLockPath()); err != nil {
+		fmt.Fprintf(rc.stderr, "warning: lock token refresh: %v\n", err)
+	} else {
+		defer unlock()
+	}
+	if !force {
+		if err := rc.reloadStoredCredentials(); err == nil && !rc.shouldRefreshConfiguredToken() {
+			tok := &skylight.OAuthTokenResponse{
+				AccessToken:  rc.cfg.AccessToken,
+				RefreshToken: rc.cfg.RefreshToken,
+			}
+			return tok, rc.cfg.AccessTokenExpAt, nil
+		}
 	}
 	opts := []skylight.Option{
 		skylight.WithTimeout(rc.g.timeout),
@@ -150,6 +170,47 @@ func (rc *runCtx) refreshConfiguredToken() (*skylight.OAuthTokenResponse, time.T
 	return tok, expiresAt, nil
 }
 
+// refreshLockPath derives the refresh lock file from the active config path so
+// invocations sharing a config serialize against the same lock.
+func (rc *runCtx) refreshLockPath() string {
+	path := rc.g.configPath
+	if path == "" {
+		if p, err := config.DefaultPath(); err == nil {
+			path = p
+		} else {
+			path = filepath.Join(os.TempDir(), "skycli-config.json")
+		}
+	}
+	return path + ".lock"
+}
+
+// reloadStoredCredentials re-reads tokens from disk (config file plus the
+// configured secrets backend) into the in-memory config.
+func (rc *runCtx) reloadStoredCredentials() error {
+	cfg, err := config.Load(rc.g.configPath)
+	if err != nil {
+		return err
+	}
+	rc.cfg.AccessToken = cfg.AccessToken
+	rc.cfg.RefreshToken = cfg.RefreshToken
+	rc.cfg.AccessTokenExpAt = cfg.AccessTokenExpAt
+	backend := rc.secretsBackend()
+	if backend == secretsBackendConfig {
+		return nil
+	}
+	secrets, err := rc.readSecrets(backend)
+	if err != nil {
+		return err
+	}
+	if secrets.AccessToken != "" {
+		rc.cfg.AccessToken = secrets.AccessToken
+	}
+	if secrets.RefreshToken != "" {
+		rc.cfg.RefreshToken = secrets.RefreshToken
+	}
+	return nil
+}
+
 func schemeOrDefault(s string) string {
 	if s == "" {
 		return config.DefaultAuthScheme
@@ -165,6 +226,7 @@ func (rc *runCtx) client() (*skylight.Client, error) {
 	opts := []skylight.Option{
 		skylight.WithTimeout(rc.g.timeout),
 		skylight.WithDryRun(rc.g.dryRun),
+		skylight.WithReadOnly(rc.g.readOnly),
 		skylight.WithAuthScheme(scheme),
 		skylight.WithAPIVersion(rc.cfg.APIVersion),
 	}

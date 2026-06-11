@@ -226,7 +226,7 @@ func authRefresh(rc *runCtx, args []string) int {
 	if *fingerprint != "" {
 		rc.cfg.DeviceFingerprint = *fingerprint
 	}
-	tok, expiresAt, err := rc.refreshConfiguredToken()
+	tok, expiresAt, err := rc.refreshConfiguredToken(true)
 	if err != nil {
 		return fail(rc, err)
 	}

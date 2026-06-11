@@ -4,6 +4,20 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+## v0.1.6 - 2026-06-11
+
+### Fixed
+
+- Block `--readonly raw -method=POST` (single-dash `=` form), which previously
+  bypassed the readonly command check and sent the mutation.
+- Enforce `--readonly` inside the HTTP client as well: non-GET API calls are
+  refused even if a command-level check is missed.
+- Serialize concurrent token refreshes with a file lock and re-read stored
+  credentials before refreshing, so parallel invocations no longer clobber
+  each other's rotated refresh token.
+- Write the encrypted secrets file atomically (write-then-rename) so an
+  interrupted write cannot corrupt stored tokens.
+
 ## v0.1.5 - 2026-06-11
 
 ### Added

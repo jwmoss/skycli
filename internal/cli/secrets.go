@@ -233,7 +233,15 @@ func writeFileSecrets(secrets storedSecrets) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, encrypted, 0o600)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, encrypted, 0o600); err != nil {
+		return fmt.Errorf("write secrets tmp: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("rename secrets file: %w", err)
+	}
+	return nil
 }
 
 func fileSecretKey() ([]byte, error) {
