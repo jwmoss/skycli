@@ -102,6 +102,10 @@ func configGet(rc *runCtx, args []string) int {
 		rc.loadConfiguredSecrets()
 	}
 	if key == "default_frame_id" {
+		if rc.g.asJSON {
+			_ = rc.out.JSON(map[string]any{"key": key, "value": rc.cfg.DefaultFrameID})
+			return exitOK
+		}
 		rc.out.Line("%d", rc.cfg.DefaultFrameID)
 		return exitOK
 	}
@@ -112,6 +116,10 @@ func configGet(rc *runCtx, args []string) int {
 	value := *getter(rc.cfg)
 	if secretKey {
 		value = maskConfigValue(value, *showSecrets)
+	}
+	if rc.g.asJSON {
+		_ = rc.out.JSON(map[string]any{"key": key, "value": value})
+		return exitOK
 	}
 	rc.out.Line("%s", value)
 	return exitOK
@@ -148,7 +156,11 @@ func configSet(rc *runCtx, args []string) int {
 		return fail(rc, err)
 	}
 	_ = rc.loadSecretsIntoConfig()
-	rc.out.Line("set %s", key)
+	if rc.g.asJSON {
+		_ = rc.out.JSON(map[string]any{"set": key})
+	} else {
+		rc.out.Line("set %s", key)
+	}
 	return exitOK
 }
 
@@ -178,7 +190,11 @@ func configUnset(rc *runCtx, args []string) int {
 		return fail(rc, err)
 	}
 	_ = rc.loadSecretsIntoConfig()
-	rc.out.Line("unset %s", key)
+	if rc.g.asJSON {
+		_ = rc.out.JSON(map[string]any{"unset": key})
+	} else {
+		rc.out.Line("unset %s", key)
+	}
 	return exitOK
 }
 

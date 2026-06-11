@@ -7,12 +7,14 @@ import (
 )
 
 var readOnlyCommands = map[string]bool{
+	"analytics":            true,
 	"auth status":          true,
 	"bounties list":        true,
 	"bounty list":          true,
 	"calendar list":        true,
 	"calendar sources":     true,
 	"calendar week":        true,
+	"commands":             true,
 	"categories":           true,
 	"category":             true,
 	"chores list":          true,
@@ -23,7 +25,6 @@ var readOnlyCommands = map[string]bool{
 	"chore week":           true,
 	"config get":           true,
 	"config show":          true,
-	"doctor":               true,
 	"export":               true,
 	"frames":               true,
 	"frames avatars":       true,
