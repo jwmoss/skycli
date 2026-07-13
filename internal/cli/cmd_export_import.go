@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -94,42 +92,9 @@ type portableCalendarEvent struct {
 	Description string `json:"description,omitempty"`
 }
 
-type recipeEntry struct {
-	ID         string `json:"id"`
-	Attributes struct {
-		Summary     string   `json:"summary"`
-		Description string   `json:"description"`
-		Ingredients []string `json:"ingredients"`
-		URL         string   `json:"url"`
-	} `json:"attributes"`
-	Relationships struct {
-		MealCategory struct {
-			Data *struct {
-				ID string `json:"id"`
-			} `json:"data"`
-		} `json:"meal_category"`
-	} `json:"relationships"`
-}
+type recipeEntry = skylight.Recipe
 
-type sittingEntry struct {
-	ID         string `json:"id"`
-	Attributes struct {
-		Summary string `json:"summary"`
-		Date    string `json:"date"`
-	} `json:"attributes"`
-	Relationships struct {
-		MealCategory struct {
-			Data *struct {
-				ID string `json:"id"`
-			} `json:"data"`
-		} `json:"meal_category"`
-		MealRecipe struct {
-			Data *struct {
-				ID string `json:"id"`
-			} `json:"data"`
-		} `json:"meal_recipe"`
-	} `json:"relationships"`
-}
+type sittingEntry = skylight.MealSitting
 
 func runExport(rc *runCtx, args []string) int {
 	fs := flag.NewFlagSet("export", flag.ContinueOnError)
@@ -444,17 +409,11 @@ func fetchRecipes(rc *runCtx, frameID int64) ([]recipeEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	raw, err := c.Do(rc.ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/meals/recipes", frameID), nil, nil)
+	recipes, err := c.ListRecipes(rc.ctx, frameID)
 	if err != nil {
 		return nil, err
 	}
-	var env struct {
-		Data []recipeEntry `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &env); err != nil {
-		return nil, err
-	}
-	return env.Data, nil
+	return recipes.Data, nil
 }
 
 func portableRecipes(recipes []recipeEntry) []portableRecipe {
@@ -474,24 +433,11 @@ func fetchSittings(rc *runCtx, frameID int64, start, end string) ([]sittingEntry
 	if err != nil {
 		return nil, err
 	}
-	q := url.Values{}
-	if start != "" {
-		q.Set("date_min", start)
-	}
-	if end != "" {
-		q.Set("date_max", end)
-	}
-	raw, err := c.Do(rc.ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/meals/sittings", frameID), q, nil)
+	sittings, err := c.ListMealSittings(rc.ctx, frameID, skylight.MealSittingFilter{StartDate: start, EndDate: end})
 	if err != nil {
 		return nil, err
 	}
-	var env struct {
-		Data []sittingEntry `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &env); err != nil {
-		return nil, err
-	}
-	return env.Data, nil
+	return sittings.Data, nil
 }
 
 func portableSittings(sittings []sittingEntry) []portableMealSitting {
@@ -540,22 +486,15 @@ func importLists(rc *runCtx, frameID int64, lists []portableList, created map[st
 			*failures = append(*failures, map[string]string{"resource": "lists", "name": l.Label, "error": err.Error()})
 			continue
 		}
-		raw, err := c.Do(rc.ctx, http.MethodPost, fmt.Sprintf("/api/frames/%d/lists", frameID), nil, payload)
+		doc, err := c.CreateList(rc.ctx, frameID, payload)
 		if err != nil {
-			*failures = append(*failures, map[string]string{"resource": "lists", "name": l.Label, "error": err.Error()})
-			continue
-		}
-		var env struct {
-			Data listEntry `json:"data"`
-		}
-		if err := json.Unmarshal(raw, &env); err != nil {
 			*failures = append(*failures, map[string]string{"resource": "lists", "name": l.Label, "error": err.Error()})
 			continue
 		}
 		created["lists"]++
 		for _, item := range l.Items {
 			itemPayload := map[string]any{"label": item.Label, "status": item.Status, "position": item.Position}
-			if _, err := c.Do(rc.ctx, http.MethodPost, fmt.Sprintf("/api/frames/%d/lists/%s/list_items", frameID, env.Data.ID), nil, itemPayload); err != nil {
+			if _, err := c.CreateListItem(rc.ctx, frameID, doc.Data.ID, itemPayload); err != nil {
 				*failures = append(*failures, map[string]string{"resource": "list_items", "name": item.Label, "error": err.Error()})
 			}
 		}
@@ -563,9 +502,19 @@ func importLists(rc *runCtx, frameID int64, lists []portableList, created map[st
 }
 
 func importRecipes(rc *runCtx, frameID int64, recipes []portableRecipe, created map[string]int, failures *[]map[string]string) {
+	if len(recipes) == 0 {
+		return
+	}
+	c, err := rc.client()
+	if err != nil {
+		for _, recipe := range recipes {
+			*failures = append(*failures, map[string]string{"resource": "recipes", "name": recipe.Summary, "error": err.Error()})
+		}
+		return
+	}
 	for _, r := range recipes {
 		payload := map[string]any{"summary": r.Summary, "description": r.Description, "ingredients": r.Ingredients, "url": r.URL, "meal_category_id": r.MealCategoryID}
-		if err := postImport(rc, frameID, "/api/frames/%d/meals/recipes", payload); err != nil {
+		if _, err := c.CreateRecipe(rc.ctx, frameID, payload); err != nil {
 			*failures = append(*failures, map[string]string{"resource": "recipes", "name": r.Summary, "error": err.Error()})
 			continue
 		}
@@ -574,9 +523,19 @@ func importRecipes(rc *runCtx, frameID int64, recipes []portableRecipe, created 
 }
 
 func importSittings(rc *runCtx, frameID int64, sittings []portableMealSitting, created map[string]int, failures *[]map[string]string) {
+	if len(sittings) == 0 {
+		return
+	}
+	c, err := rc.client()
+	if err != nil {
+		for _, sitting := range sittings {
+			*failures = append(*failures, map[string]string{"resource": "sittings", "name": sitting.Summary, "error": err.Error()})
+		}
+		return
+	}
 	for _, s := range sittings {
 		payload := map[string]any{"summary": s.Summary, "date": s.Date, "meal_recipe_id": s.RecipeID, "meal_category_id": s.MealCategoryID}
-		if err := postImport(rc, frameID, "/api/frames/%d/meals/sittings", payload); err != nil {
+		if _, err := c.CreateMealSitting(rc.ctx, frameID, payload); err != nil {
 			*failures = append(*failures, map[string]string{"resource": "sittings", "name": s.Summary, "error": err.Error()})
 			continue
 		}
@@ -585,6 +544,16 @@ func importSittings(rc *runCtx, frameID int64, sittings []portableMealSitting, c
 }
 
 func importCalendarEvents(rc *runCtx, frameID int64, events []portableCalendarEvent, created map[string]int, failures *[]map[string]string) {
+	if len(events) == 0 {
+		return
+	}
+	c, err := rc.client()
+	if err != nil {
+		for _, event := range events {
+			*failures = append(*failures, map[string]string{"resource": "calendar", "name": event.Summary, "error": err.Error()})
+		}
+		return
+	}
 	for _, ev := range events {
 		payload := map[string]any{"summary": ev.Summary, "starts_at": ev.StartsAt, "ends_at": ev.EndsAt, "all_day": ev.AllDay}
 		if ev.Color != "" {
@@ -596,21 +565,12 @@ func importCalendarEvents(rc *runCtx, frameID int64, events []portableCalendarEv
 		if ev.Description != "" {
 			payload["description"] = ev.Description
 		}
-		if err := postImport(rc, frameID, "/api/frames/%d/calendar_events", payload); err != nil {
+		if _, err := c.CreateCalendarEvent(rc.ctx, frameID, payload); err != nil {
 			*failures = append(*failures, map[string]string{"resource": "calendar", "name": ev.Summary, "error": err.Error()})
 			continue
 		}
 		created["calendar"]++
 	}
-}
-
-func postImport(rc *runCtx, frameID int64, pathFmt string, payload map[string]any) error {
-	c, err := rc.client()
-	if err != nil {
-		return err
-	}
-	_, err = c.Do(rc.ctx, http.MethodPost, fmt.Sprintf(pathFmt, frameID), nil, payload)
-	return err
 }
 
 func ptrStringValue(s *string) string {

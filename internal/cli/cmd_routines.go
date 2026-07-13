@@ -2,7 +2,8 @@ package cli
 
 import (
 	"flag"
-	"net/http"
+
+	"github.com/jwmoss/skycli/internal/skylight"
 )
 
 func runRoutines(rc *runCtx, args []string) int {
@@ -36,7 +37,9 @@ func routinesList(rc *runCtx, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodGet, "/api/frames/%d/routines", nil, nil)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ListRoutines(rc.ctx, frameID)
+	})
 }
 
 func routinePayload(rc *runCtx, fs *flag.FlagSet, body, bodyFile, title, assigneeID, steps string) (map[string]any, error) {
@@ -70,7 +73,9 @@ func routinesCreate(rc *runCtx, args []string) int {
 	if *title != "" {
 		payload["title"] = *title
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodPost, "/api/frames/%d/routines", nil, payload)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.CreateRoutine(rc.ctx, frameID, payload)
+	})
 }
 
 func routinesUpdate(rc *runCtx, args []string) int {
@@ -92,7 +97,9 @@ func routinesUpdate(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodPut, "/api/frames/%d/routines/%s", nil, payload, *routineID)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.UpdateRoutine(rc.ctx, frameID, *routineID, payload)
+	})
 }
 
 func routinesDelete(rc *runCtx, args []string) int {
@@ -106,11 +113,9 @@ func routinesDelete(rc *runCtx, args []string) int {
 	if err := requireFlagValue(*routineID, "routine-id"); err != nil {
 		return usage(rc, err.Error())
 	}
-	frameID, err := resolveFrame(rc, *frameStr)
-	if err != nil {
-		return fail(rc, err)
-	}
-	return doNoContent(rc, http.MethodDelete, "/api/frames/"+formatID(frameID)+"/routines/"+*routineID, nil, nil, map[string]any{"deleted": *routineID})
+	return runFrameResourceOK(rc, *frameStr, map[string]any{"deleted": *routineID}, func(c *skylight.Client, frameID int64) error {
+		return c.DeleteRoutine(rc.ctx, frameID, *routineID)
+	})
 }
 
 func routinesReorder(rc *runCtx, args []string) int {
@@ -124,6 +129,8 @@ func routinesReorder(rc *runCtx, args []string) int {
 	if err := requireFlagValue(*ids, "routine-ids"); err != nil {
 		return usage(rc, err.Error())
 	}
-	body := map[string]any{"ids": parseCSVStrings(*ids)}
-	return doFrameJSON(rc, *frameStr, http.MethodPatch, "/api/frames/%d/routines/reorder", nil, body)
+	routineIDs := parseCSVStrings(*ids)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ReorderRoutines(rc.ctx, frameID, routineIDs)
+	})
 }

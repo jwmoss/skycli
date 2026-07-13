@@ -312,6 +312,20 @@ func buildCommandCatalog() commandCatalogDoc {
 				Examples: []string{"skycli routines list --json"},
 			},
 			{
+				Name:     "sidekick",
+				Summary:  "Inspect Plus access and Sidekick auto-creation history.",
+				Docs:     "docs/commands/sidekick.md",
+				ReadOnly: true,
+				Subcommands: []subcommandDoc{
+					{Name: "status", Summary: "Show sanitized Plus access state."},
+					{Name: "history", Summary: "List Sidekick auto-creation intents."},
+				},
+				Examples: []string{
+					"skycli sidekick status --json",
+					"skycli sidekick history --json",
+				},
+			},
+			{
 				Name:    "bounties",
 				Aliases: []string{"bounty"},
 				Summary: "Pair chores and rewards into bounty workflows.",

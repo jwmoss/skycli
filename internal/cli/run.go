@@ -282,6 +282,7 @@ func topLevelCommands() []command {
 		{"photo", "alias for photos", runPhotos},
 		{"routines", "routine list/create/update/delete/reorder", runRoutines},
 		{"routine", "alias for routines", runRoutine},
+		{"sidekick", "inspect Plus access and Sidekick history", runSidekick},
 		{"bounties", "paired chore/reward bounty helpers", runBounties},
 		{"bounty", "alias for bounties", runBounty},
 		{"rotations", "create rotating chore schedules", runRotations},

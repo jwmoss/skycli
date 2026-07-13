@@ -152,6 +152,8 @@ fi
 run_json "meals-sittings" "${FRAME_FLAGS[@]}" meals sittings --date-min "$TODAY" --date-max "$NEXT_WEEK" --json >/dev/null
 run_json "photos-list" "${FRAME_FLAGS[@]}" photos list --json >/dev/null
 run_optional_json "routines-list" "${FRAME_FLAGS[@]}" routines list --json
+run_json "sidekick-status" --readonly sidekick status --json >/dev/null
+run_json "sidekick-history" "${FRAME_FLAGS[@]}" sidekick history --json >/dev/null
 run_json "bounties-list" "${FRAME_FLAGS[@]}" bounties list --json >/dev/null
 run_json "status" "${FRAME_FLAGS[@]}" status --json >/dev/null
 run_json "analytics" "${FRAME_FLAGS[@]}" analytics --days 7 --json >/dev/null

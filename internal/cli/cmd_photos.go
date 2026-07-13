@@ -2,15 +2,15 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/jwmoss/skycli/internal/skylight"
 )
 
 func runPhotos(rc *runCtx, args []string) int {
@@ -43,9 +43,9 @@ func photosList(rc *runCtx, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
-	q := url.Values{}
-	q.Set("page_token", *pageToken)
-	return doFrameJSON(rc, *frameStr, http.MethodGet, "/api/frames/%d/messages", q, nil)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ListPhotoMessages(rc.ctx, frameID, *pageToken)
+	})
 }
 
 func photosDelete(rc *runCtx, args []string) int {
@@ -63,12 +63,9 @@ func photosDelete(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
-	frameID, err := resolveFrame(rc, *frameStr)
-	if err != nil {
-		return fail(rc, err)
-	}
-	body := map[string]any{"message_ids": messageIDs}
-	return doNoContent(rc, http.MethodDelete, "/api/frames/"+formatID(frameID)+"/messages/destroy_multiple", nil, body, map[string]any{"deleted": messageIDs})
+	return runFrameResourceOK(rc, *frameStr, map[string]any{"deleted": messageIDs}, func(c *skylight.Client, frameID int64) error {
+		return c.DeletePhotoMessages(rc.ctx, frameID, messageIDs)
+	})
 }
 
 func photosUpload(rc *runCtx, args []string) int {
@@ -99,37 +96,15 @@ func photosUpload(rc *runCtx, args []string) int {
 	if e == "" {
 		return usage(rc, "--ext is required when --file has no extension")
 	}
-	reqBody := map[string]any{
-		"ext":       strings.ToLower(e),
-		"frame_ids": []string{formatID(frameID)},
-	}
-	if *caption != "" {
-		reqBody["caption"] = *caption
-	}
 	c, err := rc.client()
 	if err != nil {
 		return fail(rc, err)
 	}
-	raw, err := c.Do(rc.ctx, http.MethodPost, "/api/upload_url", nil, reqBody)
+	target, err := c.CreatePhotoUpload(rc.ctx, strings.ToLower(e), []string{formatID(frameID)}, *caption)
 	if err != nil {
 		return fail(rc, err)
 	}
-	var env struct {
-		Data struct {
-			UploadURL  string   `json:"url"`
-			Key        string   `json:"key"`
-			GetURL     string   `json:"get_url"`
-			MessageIDs []int    `json:"message_ids"`
-			FrameNames []string `json:"frame_names"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &env); err != nil {
-		return fail(rc, err)
-	}
-	if env.Data.UploadURL == "" {
-		return fail(rc, fmt.Errorf("empty upload URL in response"))
-	}
-	req, err := http.NewRequestWithContext(rc.ctx, http.MethodPut, env.Data.UploadURL, bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(rc.ctx, http.MethodPut, target.UploadURL, bytes.NewReader(data))
 	if err != nil {
 		return fail(rc, err)
 	}
@@ -144,9 +119,9 @@ func photosUpload(rc *runCtx, args []string) int {
 		return fail(rc, fmt.Errorf("upload failed with status %d", resp.StatusCode))
 	}
 	if rc.g.asJSON {
-		_ = rc.out.JSON(env.Data)
+		_ = rc.out.JSON(target)
 	} else {
-		rc.out.Line("uploaded key=%s messages=%v", env.Data.Key, env.Data.MessageIDs)
+		rc.out.Line("uploaded key=%s messages=%v", target.Key, target.MessageIDs)
 	}
 	return exitOK
 }

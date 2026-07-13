@@ -6,7 +6,7 @@ Unofficial. Not affiliated with Skylight. Use with accounts you own.
 
 `skycli` wraps a broad private-API surface: frames, categories, chores,
 rewards, calendar events, lists/grocery, meals, photos, routines, bounties,
-rotations, export/import, status, analytics, and watch.
+rotations, Sidekick access/history, export/import, status, analytics, and watch.
 
 ## Docs
 
@@ -68,6 +68,7 @@ The full command surface is documented under
 - [Lists](docs/commands/lists.md) and [grocery](docs/commands/grocery.md)
 - [Meals](docs/commands/meals.md), [photos](docs/commands/photos.md), and
   [routines](docs/commands/routines.md)
+- [Sidekick](docs/commands/sidekick.md) access and auto-creation history
 - [Reports](docs/commands/status.md), [analytics](docs/commands/analytics.md),
   [home](docs/commands/home.md), and [watch](docs/commands/watch.md)
 - [Export](docs/commands/export.md), [import](docs/commands/import.md),

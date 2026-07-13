@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"net/http"
+
+	"github.com/jwmoss/skycli/internal/skylight"
 )
 
 func runLists(rc *runCtx, args []string) int {
@@ -81,7 +82,9 @@ func listsAllKind(rc *runCtx, args []string, kind string) int {
 		return exitUsage
 	}
 	if kind == "" {
-		return doFrameJSON(rc, *frameStr, http.MethodGet, "/api/frames/%d/lists", nil, nil)
+		return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+			return c.ListLists(rc.ctx, frameID)
+		})
 	}
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {
@@ -112,7 +115,9 @@ func listsInfo(rc *runCtx, args []string) int {
 	if err := requireFlagValue(*listID, "list-id"); err != nil {
 		return usage(rc, err.Error())
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodGet, "/api/frames/%d/lists/%s", nil, nil, *listID)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.GetList(rc.ctx, frameID, *listID)
+	})
 }
 
 func listsCreate(rc *runCtx, args []string) int {
@@ -141,7 +146,9 @@ func listsCreate(rc *runCtx, args []string) int {
 		payload["kind"] = *kind
 	}
 	addBoolIfSet(fs, payload, "hide-from-frame", "hide_from_frame", *hide)
-	return doFrameJSON(rc, *frameStr, http.MethodPost, "/api/frames/%d/lists", nil, payload)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.CreateList(rc.ctx, frameID, payload)
+	})
 }
 
 func groceryCreate(rc *runCtx, args []string) int {
@@ -179,7 +186,7 @@ func groceryAdd(rc *runCtx, args []string) int {
 	}
 	created := []any{}
 	for _, item := range items {
-		raw, err := c.Do(rc.ctx, http.MethodPost, fmt.Sprintf("/api/frames/%d/lists/%s/list_items", frameID, *listID), nil, map[string]any{"label": item})
+		raw, err := c.CreateListItem(rc.ctx, frameID, *listID, map[string]any{"label": item})
 		if err != nil {
 			return fail(rc, err)
 		}
@@ -220,7 +227,9 @@ func listsUpdate(rc *runCtx, args []string) int {
 	addStringIfSet(fs, payload, "color", "color", *color)
 	addStringIfSet(fs, payload, "kind", "kind", *kind)
 	addBoolIfSet(fs, payload, "hide-from-frame", "hide_from_frame", *hide)
-	return doFrameJSON(rc, *frameStr, http.MethodPut, "/api/frames/%d/lists/%s", nil, payload, *listID)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.UpdateList(rc.ctx, frameID, *listID, payload)
+	})
 }
 
 func listsDelete(rc *runCtx, args []string) int {
@@ -234,11 +243,9 @@ func listsDelete(rc *runCtx, args []string) int {
 	if err := requireFlagValue(*listID, "list-id"); err != nil {
 		return usage(rc, err.Error())
 	}
-	frameID, err := resolveFrame(rc, *frameStr)
-	if err != nil {
-		return fail(rc, err)
-	}
-	return doNoContent(rc, http.MethodDelete, "/api/frames/"+formatID(frameID)+"/lists/"+*listID, nil, nil, map[string]any{"deleted": *listID})
+	return runFrameResourceOK(rc, *frameStr, map[string]any{"deleted": *listID}, func(c *skylight.Client, frameID int64) error {
+		return c.DeleteList(rc.ctx, frameID, *listID)
+	})
 }
 
 func listsAddItem(rc *runCtx, args []string) int {
@@ -267,7 +274,9 @@ func listsAddItem(rc *runCtx, args []string) int {
 	if flagChanged(fs, "completed") && *completed {
 		payload["status"] = "completed"
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodPost, "/api/frames/%d/lists/%s/list_items", nil, payload, *listID)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.CreateListItem(rc.ctx, frameID, *listID, payload)
+	})
 }
 
 func listsUpdateItem(rc *runCtx, args []string) int {
@@ -305,7 +314,9 @@ func listsUpdateItem(rc *runCtx, args []string) int {
 	if flagChanged(fs, "pending") && *pending {
 		payload["status"] = "pending"
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodPut, "/api/frames/%d/lists/%s/list_items/%s", nil, payload, *listID, *itemID)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.UpdateListItem(rc.ctx, frameID, *listID, *itemID, payload)
+	})
 }
 
 func listsDeleteItem(rc *runCtx, args []string) int {
@@ -323,12 +334,9 @@ func listsDeleteItem(rc *runCtx, args []string) int {
 	if err := requireFlagValue(*itemID, "item-id"); err != nil {
 		return usage(rc, err.Error())
 	}
-	frameID, err := resolveFrame(rc, *frameStr)
-	if err != nil {
-		return fail(rc, err)
-	}
-	path := "/api/frames/" + formatID(frameID) + "/lists/" + *listID + "/list_items/" + *itemID
-	return doNoContent(rc, http.MethodDelete, path, nil, nil, map[string]any{"deleted": *itemID})
+	return runFrameResourceOK(rc, *frameStr, map[string]any{"deleted": *itemID}, func(c *skylight.Client, frameID int64) error {
+		return c.DeleteListItem(rc.ctx, frameID, *listID, *itemID)
+	})
 }
 
 func listsAction(rc *runCtx, args []string, action string) int {
@@ -342,7 +350,9 @@ func listsAction(rc *runCtx, args []string, action string) int {
 	if err := requireFlagValue(*listID, "list-id"); err != nil {
 		return usage(rc, err.Error())
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodPost, "/api/frames/%d/lists/%s/"+action, nil, nil, *listID)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.OrganizeList(rc.ctx, frameID, *listID)
+	})
 }
 
 func listsOrder(rc *runCtx, args []string) int {
@@ -361,7 +371,9 @@ func listsOrder(rc *runCtx, args []string) int {
 	if *retailer != "" {
 		body["retailer"] = *retailer
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodPost, "/api/frames/%d/lists/%s/order", nil, body, *listID)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.OrderList(rc.ctx, frameID, *listID, body)
+	})
 }
 
 func taskBoxItemsList(rc *runCtx, args []string) int {
@@ -371,7 +383,9 @@ func taskBoxItemsList(rc *runCtx, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodGet, "/api/frames/%d/task_box/items", nil, nil)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ListTaskBoxItems(rc.ctx, frameID)
+	})
 }
 
 func taskBoxItemCreate(rc *runCtx, args []string) int {
@@ -386,7 +400,9 @@ func taskBoxItemCreate(rc *runCtx, args []string) int {
 		return usage(rc, err.Error())
 	}
 	body := map[string]any{"task_box_item": map[string]any{"title": *title}}
-	return doFrameJSON(rc, *frameStr, http.MethodPost, "/api/frames/%d/task_box/items", nil, body)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.CreateTaskBoxItem(rc.ctx, frameID, body)
+	})
 }
 
 func listsClearCompleted(rc *runCtx, args []string) int {
@@ -408,17 +424,16 @@ func listsClearCompleted(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
+	c, err := rc.client()
+	if err != nil {
+		return fail(rc, err)
+	}
 	deleted := []string{}
 	for _, item := range items {
 		if item.Attributes.Status != "completed" {
 			continue
 		}
-		path := "/api/frames/" + formatID(frameID) + "/lists/" + *listID + "/list_items/" + item.ID
-		c, err := rc.client()
-		if err != nil {
-			return fail(rc, err)
-		}
-		if _, err := c.Do(rc.ctx, http.MethodDelete, path, nil, nil); err != nil {
+		if err := c.DeleteListItem(rc.ctx, frameID, *listID, item.ID); err != nil {
 			return fail(rc, fmt.Errorf("delete item %s: %w", item.ID, err))
 		}
 		deleted = append(deleted, item.ID)
@@ -431,43 +446,20 @@ func listsClearCompleted(rc *runCtx, args []string) int {
 	return exitOK
 }
 
-type listEntry struct {
-	ID         string `json:"id"`
-	Type       string `json:"type,omitempty"`
-	Attributes struct {
-		Label         string `json:"label"`
-		Color         string `json:"color"`
-		Kind          string `json:"kind"`
-		HideFromFrame bool   `json:"hide_from_frame"`
-	} `json:"attributes"`
-}
+type listEntry = skylight.List
 
-type listItemEntry struct {
-	ID         string `json:"id"`
-	Type       string `json:"type,omitempty"`
-	Attributes struct {
-		Label    string `json:"label"`
-		Status   string `json:"status"`
-		Position int    `json:"position"`
-	} `json:"attributes"`
-}
+type listItemEntry = skylight.ListItem
 
 func fetchLists(rc *runCtx, frameID int64) ([]listEntry, error) {
 	c, err := rc.client()
 	if err != nil {
 		return nil, err
 	}
-	raw, err := c.Do(rc.ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/lists", frameID), nil, nil)
+	lists, err := c.ListLists(rc.ctx, frameID)
 	if err != nil {
 		return nil, err
 	}
-	var env struct {
-		Data []listEntry `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &env); err != nil {
-		return nil, err
-	}
-	return env.Data, nil
+	return lists.Data, nil
 }
 
 func fetchListItems(rc *runCtx, frameID int64, listID string) ([]listItemEntry, error) {
@@ -475,24 +467,9 @@ func fetchListItems(rc *runCtx, frameID int64, listID string) ([]listItemEntry, 
 	if err != nil {
 		return nil, err
 	}
-	raw, err := c.Do(rc.ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/lists/%s", frameID, listID), nil, nil)
+	list, err := c.GetList(rc.ctx, frameID, listID)
 	if err != nil {
 		return nil, err
 	}
-	var env struct {
-		Included []listItemEntry `json:"included"`
-		Data     struct {
-			Relationships map[string]any `json:"relationships"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &env); err != nil {
-		return nil, err
-	}
-	items := make([]listItemEntry, 0, len(env.Included))
-	for _, item := range env.Included {
-		if item.Type == "" || item.Type == "list_item" {
-			items = append(items, item)
-		}
-	}
-	return items, nil
+	return list.Items(), nil
 }

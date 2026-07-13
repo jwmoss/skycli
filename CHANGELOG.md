@@ -4,6 +4,20 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Add read-only `sidekick status` and `sidekick history` commands for sanitized
+  Plus access state and Sidekick Auto-creation Intents discovered in Skylight
+  app 2.9.0.
+- Add `CONTEXT.md` with the project vocabulary for Frames, Profiles, Labels,
+  Categories, Sidekick, Auto-creation Intents, and Plus Access.
+
+### Changed
+
+- Deepen `internal/skylight` resource access so private endpoint paths, query
+  rules, response decoding, and resource representations no longer leak into
+  command modules. The generic transport remains public only for `raw`.
+
 ## v0.1.6 - 2026-06-11
 
 ### Fixed
