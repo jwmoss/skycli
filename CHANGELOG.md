@@ -4,6 +4,8 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+## v0.1.7 - 2026-07-13
+
 ### Added
 
 - Add read-only `sidekick status` and `sidekick history` commands for sanitized
@@ -17,6 +19,7 @@ All notable changes to `skycli` will be documented in this file.
 - Deepen `internal/skylight` resource access so private endpoint paths, query
   rules, response decoding, and resource representations no longer leak into
   command modules. The generic transport remains public only for `raw`.
+- Update pinned GitHub Actions and Go module dependencies.
 
 ## v0.1.6 - 2026-06-11
 
