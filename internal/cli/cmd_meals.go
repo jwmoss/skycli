@@ -2,8 +2,8 @@ package cli
 
 import (
 	"flag"
-	"net/http"
-	"net/url"
+
+	"github.com/jwmoss/skycli/internal/skylight"
 )
 
 func runMeals(rc *runCtx, args []string) int {
@@ -43,7 +43,9 @@ func mealCategories(rc *runCtx, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodGet, "/api/frames/%d/meals/categories", nil, nil)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ListMealCategories(rc.ctx, frameID)
+	})
 }
 
 func mealRecipes(rc *runCtx, args []string) int {
@@ -53,7 +55,9 @@ func mealRecipes(rc *runCtx, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodGet, "/api/frames/%d/meals/recipes", nil, nil)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ListRecipes(rc.ctx, frameID)
+	})
 }
 
 func mealRecipeInfo(rc *runCtx, args []string) int {
@@ -67,7 +71,9 @@ func mealRecipeInfo(rc *runCtx, args []string) int {
 	if err := requireFlagValue(*recipeID, "recipe-id"); err != nil {
 		return usage(rc, err.Error())
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodGet, "/api/frames/%d/meals/recipes/%s", nil, nil, *recipeID)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.GetRecipe(rc.ctx, frameID, *recipeID)
+	})
 }
 
 func mealRecipePayload(rc *runCtx, fs *flag.FlagSet, body, bodyFile, title, description, ingredients, recipeURL, categoryID string) (map[string]any, error) {
@@ -105,7 +111,9 @@ func mealCreateRecipe(rc *runCtx, args []string) int {
 	if *title != "" {
 		payload["summary"] = *title
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodPost, "/api/frames/%d/meals/recipes", nil, payload)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.CreateRecipe(rc.ctx, frameID, payload)
+	})
 }
 
 func mealUpdateRecipe(rc *runCtx, args []string) int {
@@ -129,7 +137,9 @@ func mealUpdateRecipe(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodPatch, "/api/frames/%d/meals/recipes/%s", nil, payload, *recipeID)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.UpdateRecipe(rc.ctx, frameID, *recipeID, payload)
+	})
 }
 
 func mealDeleteRecipe(rc *runCtx, args []string) int {
@@ -143,11 +153,9 @@ func mealDeleteRecipe(rc *runCtx, args []string) int {
 	if err := requireFlagValue(*recipeID, "recipe-id"); err != nil {
 		return usage(rc, err.Error())
 	}
-	frameID, err := resolveFrame(rc, *frameStr)
-	if err != nil {
-		return fail(rc, err)
-	}
-	return doNoContent(rc, http.MethodDelete, "/api/frames/"+formatID(frameID)+"/meals/recipes/"+*recipeID, nil, nil, map[string]any{"deleted": *recipeID})
+	return runFrameResourceOK(rc, *frameStr, map[string]any{"deleted": *recipeID}, func(c *skylight.Client, frameID int64) error {
+		return c.DeleteRecipe(rc.ctx, frameID, *recipeID)
+	})
 }
 
 func mealSittings(rc *runCtx, args []string) int {
@@ -159,14 +167,9 @@ func mealSittings(rc *runCtx, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
-	q := url.Values{}
-	if *dateMin != "" {
-		q.Set("date_min", *dateMin)
-	}
-	if *dateMax != "" {
-		q.Set("date_max", *dateMax)
-	}
-	return doFrameJSON(rc, *frameStr, http.MethodGet, "/api/frames/%d/meals/sittings", q, nil)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ListMealSittings(rc.ctx, frameID, skylight.MealSittingFilter{StartDate: *dateMin, EndDate: *dateMax})
+	})
 }
 
 func mealCreateSitting(rc *runCtx, args []string) int {
@@ -189,7 +192,9 @@ func mealCreateSitting(rc *runCtx, args []string) int {
 	addStringIfSet(fs, payload, "summary", "summary", *summary)
 	addStringIfSet(fs, payload, "date", "date", *date)
 	addStringIfSet(fs, payload, "meal-category-id", "meal_category_id", *categoryID)
-	return doFrameJSON(rc, *frameStr, http.MethodPost, "/api/frames/%d/meals/sittings", nil, payload)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.CreateMealSitting(rc.ctx, frameID, payload)
+	})
 }
 
 func mealDeleteSitting(rc *runCtx, args []string) int {
@@ -207,12 +212,9 @@ func mealDeleteSitting(rc *runCtx, args []string) int {
 	if err := requireFlagValue(*date, "date"); err != nil {
 		return usage(rc, err.Error())
 	}
-	frameID, err := resolveFrame(rc, *frameStr)
-	if err != nil {
-		return fail(rc, err)
-	}
-	path := "/api/frames/" + formatID(frameID) + "/meals/sittings/" + *sittingID + "/instances/" + *date
-	return doNoContent(rc, http.MethodDelete, path, nil, nil, map[string]any{"deleted": *sittingID, "date": *date})
+	return runFrameResourceOK(rc, *frameStr, map[string]any{"deleted": *sittingID, "date": *date}, func(c *skylight.Client, frameID int64) error {
+		return c.DeleteMealSitting(rc.ctx, frameID, *sittingID, *date)
+	})
 }
 
 func mealAddToGrocery(rc *runCtx, args []string) int {
@@ -226,5 +228,7 @@ func mealAddToGrocery(rc *runCtx, args []string) int {
 	if err := requireFlagValue(*recipeID, "recipe-id"); err != nil {
 		return usage(rc, err.Error())
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodPost, "/api/frames/%d/meals/recipes/%s/add_to_grocery_list", nil, nil, *recipeID)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.AddRecipeToGroceryList(rc.ctx, frameID, *recipeID)
+	})
 }

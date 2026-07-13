@@ -3,7 +3,8 @@ package cli
 import (
 	"flag"
 	"fmt"
-	"net/http"
+
+	"github.com/jwmoss/skycli/internal/skylight"
 )
 
 func runFrames(rc *runCtx, args []string) int {
@@ -18,9 +19,13 @@ func runFrames(rc *runCtx, args []string) int {
 	case "devices":
 		return framesDevices(rc, args[1:])
 	case "avatars":
-		return doJSON(rc, http.MethodGet, "/api/avatars", nil, nil)
+		return runResourceJSON(rc, func(c *skylight.Client) (any, error) {
+			return c.ListAvatars(rc.ctx)
+		})
 	case "colors":
-		return doJSON(rc, http.MethodGet, "/api/colors", nil, nil)
+		return runResourceJSON(rc, func(c *skylight.Client) (any, error) {
+			return c.ListColors(rc.ctx)
+		})
 	case "set-default":
 		return framesSetDefault(rc, args[1:])
 	default:
@@ -113,7 +118,9 @@ func framesDevices(rc *runCtx, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodGet, "/api/frames/%d/devices", nil, nil)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ListFrameDevices(rc.ctx, frameID)
+	})
 }
 
 func framesSetDefault(rc *runCtx, args []string) int {

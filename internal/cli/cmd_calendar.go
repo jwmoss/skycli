@@ -1,13 +1,11 @@
 package cli
 
 import (
-	"encoding/json"
 	"flag"
-	"fmt"
-	"net/http"
-	"net/url"
 	"sort"
 	"time"
+
+	"github.com/jwmoss/skycli/internal/skylight"
 )
 
 func runCalendar(rc *runCtx, args []string) int {
@@ -34,24 +32,7 @@ func runCalendar(rc *runCtx, args []string) int {
 	}
 }
 
-type calendarEventEntry struct {
-	ID         string `json:"id"`
-	Attributes struct {
-		Summary     string `json:"summary"`
-		StartsAt    string `json:"starts_at"`
-		EndsAt      string `json:"ends_at"`
-		AllDay      bool   `json:"all_day"`
-		Color       string `json:"color"`
-		Description string `json:"description"`
-	} `json:"attributes"`
-	Relationships struct {
-		Category struct {
-			Data *struct {
-				ID string `json:"id"`
-			} `json:"data"`
-		} `json:"category"`
-	} `json:"relationships"`
-}
+type calendarEventEntry = skylight.CalendarEvent
 
 type weeklyCalendarDay struct {
 	Day    string               `json:"day"`
@@ -68,14 +49,9 @@ func calendarList(rc *runCtx, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
-	q := url.Values{}
-	if *start != "" {
-		q.Set("date_min", *start)
-	}
-	if *end != "" {
-		q.Set("date_max", *end)
-	}
-	return doFrameJSON(rc, *frameStr, http.MethodGet, "/api/frames/%d/calendar_events", q, nil)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ListCalendarEvents(rc.ctx, frameID, skylight.CalendarEventFilter{StartDate: *start, EndDate: *end})
+	})
 }
 
 func calendarWeek(rc *runCtx, args []string) int {
@@ -134,24 +110,11 @@ func fetchCalendarEvents(rc *runCtx, frameID int64, start, end string) ([]calend
 	if err != nil {
 		return nil, err
 	}
-	q := url.Values{}
-	if start != "" {
-		q.Set("date_min", start)
-	}
-	if end != "" {
-		q.Set("date_max", end)
-	}
-	raw, err := c.Do(rc.ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/calendar_events", frameID), q, nil)
+	events, err := c.ListCalendarEvents(rc.ctx, frameID, skylight.CalendarEventFilter{StartDate: start, EndDate: end})
 	if err != nil {
 		return nil, err
 	}
-	var env struct {
-		Data []calendarEventEntry `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &env); err != nil {
-		return nil, err
-	}
-	return env.Data, nil
+	return events.Data, nil
 }
 
 func buildWeeklyCalendarDays(events []calendarEventEntry, monday time.Time) []weeklyCalendarDay {
@@ -183,7 +146,9 @@ func calendarSources(rc *runCtx, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodGet, "/api/frames/%d/source_calendars", nil, nil)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ListSourceCalendars(rc.ctx, frameID)
+	})
 }
 
 func calendarCreate(rc *runCtx, args []string, countdown bool) int {
@@ -237,7 +202,9 @@ func calendarCreate(rc *runCtx, args []string, countdown bool) int {
 	if *eventType != "" {
 		payload["event_type"] = *eventType
 	}
-	return doFrameJSON(rc, *frameStr, http.MethodPost, "/api/frames/%d/calendar_events", nil, payload)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.CreateCalendarEvent(rc.ctx, frameID, payload)
+	})
 }
 
 func calendarUpdate(rc *runCtx, args []string) int {
@@ -270,7 +237,9 @@ func calendarUpdate(rc *runCtx, args []string) int {
 	addStringIfSet(fs, payload, "color", "color", *color)
 	addStringIfSet(fs, payload, "category", "category_id", *category)
 	addStringIfSet(fs, payload, "event-type", "event_type", *eventType)
-	return doFrameJSON(rc, *frameStr, http.MethodPut, "/api/frames/%d/calendar_events/%s", nil, payload, *eventID)
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.UpdateCalendarEvent(rc.ctx, frameID, *eventID, payload)
+	})
 }
 
 func calendarDelete(rc *runCtx, args []string) int {
@@ -284,9 +253,7 @@ func calendarDelete(rc *runCtx, args []string) int {
 	if err := requireFlagValue(*eventID, "event-id"); err != nil {
 		return usage(rc, err.Error())
 	}
-	frameID, err := resolveFrame(rc, *frameStr)
-	if err != nil {
-		return fail(rc, err)
-	}
-	return doNoContent(rc, methodDelete(), "/api/frames/"+formatID(frameID)+"/calendar_events/"+*eventID, nil, nil, map[string]any{"deleted": *eventID})
+	return runFrameResourceOK(rc, *frameStr, map[string]any{"deleted": *eventID}, func(c *skylight.Client, frameID int64) error {
+		return c.DeleteCalendarEvent(rc.ctx, frameID, *eventID)
+	})
 }

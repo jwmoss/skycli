@@ -16,6 +16,7 @@ Public command pages are listed in CLI-help order.
 | [`meals`](meals.md) | Read and manage meal categories, recipes, and sittings. |
 | [`photos`](photos.md) | List, upload, download, and delete photos. |
 | [`routines`](routines.md) | List and manage routines when the private endpoint is available. |
+| [`sidekick`](sidekick.md) | Inspect Plus access and Sidekick auto-creation history. |
 | [`bounties`](bounties.md) | Pair chores and rewards into bounty workflows. |
 | [`rotations`](rotations.md) | Create rotating chore schedules. |
 | [`status`](status.md) | Show a quick connected-frame overview. |

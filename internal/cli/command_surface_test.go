@@ -122,6 +122,8 @@ func TestCommandSurfaceJSONModeWithPostCommandFlag(t *testing.T) {
 		{"routines update", []string{"routines", "update", "--routine-id", "routine-1", "--title", "Evening", "--json"}, ""},
 		{"routines reorder", []string{"routines", "reorder", "--routine-ids", "routine-1,routine-2", "--json"}, ""},
 		{"routines delete", []string{"routines", "delete", "--routine-id", "routine-1", "--json"}, ""},
+		{"sidekick status", []string{"sidekick", "status", "--json"}, ""},
+		{"sidekick history", []string{"sidekick", "history", "--json"}, ""},
 		{"bounties list", []string{"bounties", "list", "--json"}, ""},
 		{"bounties create", []string{"bounties", "create", "--title", "Garage", "--points", "10", "--assignee-id", "1", "--reward-title", "Garage reward", "--json"}, ""},
 		{"bounties update", []string{"bounties", "update", "--chore-id", "99", "--reward-id", "55", "--title", "Garage updated", "--json"}, ""},
@@ -379,6 +381,14 @@ func (f *fakeSkylightAPI) handle(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": true})
 	case method == http.MethodDelete && path == "/api/frames/123/routines/routine-1":
 		writeJSON(w, map[string]any{"ok": true})
+	case method == http.MethodGet && path == "/api/plus_access":
+		writeJSON(w, map[string]any{"data": map[string]any{
+			"bundle_entitlement":           map[string]any{"available": false},
+			"self_serve_trial_eligibility": map[string]any{"assistant": true},
+			"subscriptions":                []any{map[string]any{"attributes": map[string]any{"plus_type": "cal_plus", "status": "active"}}},
+		}})
+	case method == http.MethodGet && path == "/api/frames/123/auto_creation_intents":
+		writeJSON(w, map[string]any{"data": []any{map[string]any{"id": "intent-1", "type": "auto_creation_intent"}}})
 	default:
 		f.t.Fatalf("unexpected fake Skylight request: %s %s", method, r.URL.RequestURI())
 	}

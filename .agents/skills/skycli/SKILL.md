@@ -89,6 +89,8 @@ skycli --json rewards points
 skycli --json calendar list --start-date 2026-05-18 --end-date 2026-05-24
 skycli --json lists list
 skycli --json photos list
+skycli --json sidekick status
+skycli --json sidekick history
 skycli --json status
 skycli --json analytics --days 30
 ```

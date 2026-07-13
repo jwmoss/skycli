@@ -5,11 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/jwmoss/skycli/internal/skylight"
 )
 
 func printJSONBytes(rc *runCtx, data []byte) int {
@@ -54,33 +54,41 @@ func readPayload(rc *runCtx, body, bodyFile string) (map[string]any, error) {
 	return payload, nil
 }
 
-func doJSON(rc *runCtx, method, path string, query url.Values, body any) int {
+func runResourceJSON(rc *runCtx, call func(*skylight.Client) (any, error)) int {
 	c, err := rc.client()
 	if err != nil {
 		return fail(rc, err)
 	}
-	data, err := c.Do(rc.ctx, method, path, query, body)
+	data, err := call(c)
 	if err != nil {
 		return fail(rc, err)
 	}
-	return printJSONBytes(rc, data)
+	if err := rc.out.JSON(data); err != nil {
+		return fail(rc, err)
+	}
+	return exitOK
 }
 
-func doFrameJSON(rc *runCtx, frameStr, method, pathFmt string, query url.Values, body any, args ...any) int {
+func runFrameResourceJSON(rc *runCtx, frameStr string, call func(*skylight.Client, int64) (any, error)) int {
 	frameID, err := resolveFrame(rc, frameStr)
 	if err != nil {
 		return fail(rc, err)
 	}
-	all := append([]any{frameID}, args...)
-	return doJSON(rc, method, fmt.Sprintf(pathFmt, all...), query, body)
+	return runResourceJSON(rc, func(c *skylight.Client) (any, error) {
+		return call(c, frameID)
+	})
 }
 
-func doNoContent(rc *runCtx, method, path string, query url.Values, body any, ok map[string]any) int {
+func runFrameResourceOK(rc *runCtx, frameStr string, ok map[string]any, call func(*skylight.Client, int64) error) int {
+	frameID, err := resolveFrame(rc, frameStr)
+	if err != nil {
+		return fail(rc, err)
+	}
 	c, err := rc.client()
 	if err != nil {
 		return fail(rc, err)
 	}
-	if _, err := c.Do(rc.ctx, method, path, query, body); err != nil {
+	if err := call(c, frameID); err != nil {
 		return fail(rc, err)
 	}
 	if rc.g.asJSON {
@@ -158,10 +166,6 @@ func bodyFlags(fs *flag.FlagSet, rc *runCtx) (*string, *string) {
 	body := fs.String("body", "", "raw JSON body to merge with flags")
 	bodyFile := fs.String("body-file", "", "path or - for raw JSON body to merge with flags")
 	return body, bodyFile
-}
-
-func methodDelete() string {
-	return http.MethodDelete
 }
 
 func formatID(id int64) string {
