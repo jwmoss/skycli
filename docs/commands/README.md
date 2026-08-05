@@ -15,6 +15,7 @@ Public command pages are listed in CLI-help order.
 | [`grocery`](grocery.md) | Convenience commands for grocery lists. |
 | [`meals`](meals.md) | Read and manage meal categories, recipes, and sittings. |
 | [`photos`](photos.md) | List, upload, download, and delete photos. |
+| [`albums`](albums.md) | Read photo albums and their messages. |
 | [`routines`](routines.md) | List and manage routines when the private endpoint is available. |
 | [`sidekick`](sidekick.md) | Inspect Plus access and Sidekick auto-creation history. |
 | [`bounties`](bounties.md) | Pair chores and rewards into bounty workflows. |

@@ -52,6 +52,9 @@ func TestCommandSurfaceJSONModeWithPostCommandFlag(t *testing.T) {
 		{"frames list", []string{"frames", "list", "--json"}, ""},
 		{"frames show", []string{"frames", "show", "--json"}, ""},
 		{"frames devices", []string{"frames", "devices", "--json"}, ""},
+		{"frames device", []string{"frames", "device", "--device-id", "device-1", "--json"}, ""},
+		{"frames household config", []string{"frames", "household-config", "--json"}, ""},
+		{"frames alarms", []string{"frames", "alarms", "--device-id", "device-1", "--json"}, ""},
 		{"frames avatars", []string{"frames", "avatars", "--json"}, ""},
 		{"frames colors", []string{"frames", "colors", "--json"}, ""},
 		{"frames set-default", []string{"frames", "set-default", "123", "--json"}, ""},
@@ -78,6 +81,9 @@ func TestCommandSurfaceJSONModeWithPostCommandFlag(t *testing.T) {
 		{"calendar list", []string{"calendar", "list", "--start-date", "2026-06-10", "--end-date", "2026-06-17", "--json"}, ""},
 		{"calendar week", []string{"calendar", "week", "--date", "2026-06-10", "--json"}, ""},
 		{"calendar sources", []string{"calendar", "sources", "--json"}, ""},
+		{"calendar search", []string{"calendar", "search", "--query", "Dentist", "--json"}, ""},
+		{"calendar countdowns", []string{"calendar", "countdowns", "--start-date", "2026-06-10", "--end-date", "2026-07-10", "--json"}, ""},
+		{"calendar recent invites", []string{"calendar", "recent-invites", "--json"}, ""},
 		{"calendar create", []string{"calendar", "create", "--title", "Dentist", "--start-at", "2026-06-10T14:00:00Z", "--json"}, ""},
 		{"calendar create-countdown", []string{"calendar", "create-countdown", "--title", "Beach", "--date", "2026-07-01", "--json"}, ""},
 		{"calendar update", []string{"calendar", "update", "--event-id", "evt-1", "--title", "Dentist updated", "--json"}, ""},
@@ -114,9 +120,15 @@ func TestCommandSurfaceJSONModeWithPostCommandFlag(t *testing.T) {
 		{"meals delete-sitting", []string{"meals", "delete-sitting", "--sitting-id", "sitting-1", "--date", "2026-06-10", "--json"}, ""},
 		{"meals add-to-grocery", []string{"meals", "add-to-grocery", "--recipe-id", "recipe-1", "--json"}, ""},
 		{"photos list", []string{"photos", "list", "--json"}, ""},
+		{"photos show", []string{"photos", "show", "--message-id", "10", "--json"}, ""},
+		{"photos likes", []string{"photos", "likes", "--message-id", "10", "--json"}, ""},
+		{"photos comments", []string{"photos", "comments", "--message-id", "10", "--page", "1", "--json"}, ""},
 		{"photos upload", []string{"photos", "upload", "--file", photoPath, "--caption", "test", "--json"}, ""},
 		{"photos download", []string{"photos", "download", "--asset-url", api.assetURL(), "--out", downloadPath, "--json"}, ""},
 		{"photos delete", []string{"photos", "delete", "--message-ids", "10,11", "--json"}, ""},
+		{"albums list", []string{"albums", "list", "--json"}, ""},
+		{"albums messages", []string{"albums", "messages", "--album-id", "album-1", "--json"}, ""},
+		{"albums message ids", []string{"albums", "message-ids", "--album-id", "album-1", "--json"}, ""},
 		{"routines list", []string{"routines", "list", "--json"}, ""},
 		{"routines create", []string{"routines", "create", "--title", "Morning", "--assignee-id", "1", "--steps", "Brush,Pack", "--json"}, ""},
 		{"routines update", []string{"routines", "update", "--routine-id", "routine-1", "--title", "Evening", "--json"}, ""},
@@ -277,6 +289,12 @@ func (f *fakeSkylightAPI) handle(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"data": fakeFrame()})
 	case method == http.MethodGet && path == "/api/frames/123/devices":
 		writeJSON(w, map[string]any{"data": []any{map[string]any{"id": "device-1"}}})
+	case method == http.MethodGet && path == "/api/frames/123/devices/device-1":
+		writeJSON(w, map[string]any{"data": map[string]any{"id": "device-1"}})
+	case method == http.MethodGet && path == "/api/frames/123/household_config":
+		writeJSON(w, map[string]any{"data": map[string]any{"id": "household-1"}})
+	case method == http.MethodGet && path == "/api/frames/123/devices/device-1/alarms":
+		writeJSON(w, map[string]any{"data": []any{map[string]any{"id": "alarm-1"}}})
 	case method == http.MethodGet && path == "/api/avatars":
 		writeJSON(w, map[string]any{"data": []any{map[string]any{"id": "avatar-1"}}})
 	case method == http.MethodGet && path == "/api/colors":
@@ -321,6 +339,12 @@ func (f *fakeSkylightAPI) handle(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": true})
 	case method == http.MethodGet && path == "/api/frames/123/source_calendars":
 		writeJSON(w, map[string]any{"data": []any{map[string]any{"id": "source-1"}}})
+	case method == http.MethodGet && path == "/api/frames/123/calendar_events/search":
+		writeJSON(w, map[string]any{"data": []any{fakeCalendarEvent()}})
+	case method == http.MethodGet && path == "/api/frames/123/calendar_events/countdowns":
+		writeJSON(w, map[string]any{"data": []any{fakeCalendarEvent()}})
+	case method == http.MethodGet && path == "/api/frames/123/calendar_events/recent_invited_emails":
+		writeJSON(w, map[string]any{"data": []any{"invitee@example.com"}})
 	case method == http.MethodGet && path == "/api/frames/123/lists":
 		writeJSON(w, map[string]any{"data": []any{fakeList("77", "Groceries", "grocery"), fakeList("78", "Errands", "to_do")}})
 	case method == http.MethodPost && path == "/api/frames/123/lists":
@@ -367,6 +391,18 @@ func (f *fakeSkylightAPI) handle(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": true})
 	case method == http.MethodGet && path == "/api/frames/123/messages":
 		writeJSON(w, map[string]any{"data": []any{map[string]any{"id": "10", "attributes": map[string]any{"caption": "hello"}}}})
+	case method == http.MethodGet && path == "/api/frames/123/messages/10":
+		writeJSON(w, map[string]any{"data": map[string]any{"id": "10", "attributes": map[string]any{"caption": "hello"}}})
+	case method == http.MethodGet && path == "/api/frames/123/messages/10/all_likes":
+		writeJSON(w, map[string]any{"data": []any{}})
+	case method == http.MethodGet && path == "/api/frames/123/messages/10/comments":
+		writeJSON(w, map[string]any{"data": []any{}})
+	case method == http.MethodGet && path == "/api/frames/123/albums":
+		writeJSON(w, map[string]any{"data": []any{map[string]any{"id": "album-1"}}})
+	case method == http.MethodGet && path == "/api/frames/123/albums/album-1/messages":
+		writeJSON(w, map[string]any{"data": []any{map[string]any{"id": "10"}}})
+	case method == http.MethodGet && path == "/api/frames/123/albums/album-1/messages/all_ids":
+		writeJSON(w, map[string]any{"data": []any{"10"}})
 	case method == http.MethodPost && path == "/api/upload_url":
 		writeJSON(w, map[string]any{"data": map[string]any{"url": f.upload.URL + "/upload", "key": "photo-key", "get_url": f.assetURL(), "message_ids": []int{10}, "frame_names": []string{"Kitchen"}}})
 	case method == http.MethodDelete && path == "/api/frames/123/messages/destroy_multiple":

@@ -37,18 +37,21 @@ with open(path, "r", encoding="utf-8") as f:
     data = json.load(f)
 
 cur = data
-for part in expr.split("."):
-    if not part:
-        continue
-    if part.endswith("]"):
-        name, idx = part[:-1].split("[", 1)
-        if name:
-            cur = cur.get(name)
-        cur = cur[int(idx)]
-    else:
-        cur = cur.get(part)
-    if cur is None:
-        sys.exit(0)
+try:
+    for part in expr.split("."):
+        if not part:
+            continue
+        if part.endswith("]"):
+            name, idx = part[:-1].split("[", 1)
+            if name:
+                cur = cur.get(name)
+            cur = cur[int(idx)]
+        else:
+            cur = cur.get(part)
+        if cur is None:
+            sys.exit(0)
+except (AttributeError, IndexError, KeyError, TypeError):
+    sys.exit(0)
 
 print(cur)
 PY
@@ -118,7 +121,15 @@ FRAME_FLAGS=(--readonly --frame "$FRAME_ID")
 
 run_json "doctor-flag" "${FRAME_FLAGS[@]}" --doctor --json >/dev/null
 run_json "frames-show" --readonly frames show --id "$FRAME_ID" --json >/dev/null
-run_json "frames-devices" "${FRAME_FLAGS[@]}" frames devices --json >/dev/null
+devices_out="$(run_json "frames-devices" "${FRAME_FLAGS[@]}" frames devices --json)"
+DEVICE_ID="$(json_value "$devices_out" "data[0].id")"
+if [[ -n "$DEVICE_ID" ]]; then
+  run_json "frames-device" "${FRAME_FLAGS[@]}" frames device --device-id "$DEVICE_ID" --json >/dev/null
+  run_json "frames-alarms" "${FRAME_FLAGS[@]}" frames alarms --device-id "$DEVICE_ID" --json >/dev/null
+else
+  printf 'SKIP frames-device/alarms: no devices returned\n' >&2
+fi
+run_json "frames-household-config" "${FRAME_FLAGS[@]}" frames household-config --json >/dev/null
 run_json "frames-avatars" --readonly frames avatars --json >/dev/null
 run_json "frames-colors" --readonly frames colors --json >/dev/null
 run_json "categories" "${FRAME_FLAGS[@]}" categories --json >/dev/null
@@ -130,6 +141,9 @@ run_json "rewards-points" "${FRAME_FLAGS[@]}" rewards points --json >/dev/null
 run_json "calendar-list" "${FRAME_FLAGS[@]}" calendar list --start-date "$TODAY" --end-date "$NEXT_WEEK" --json >/dev/null
 run_json "calendar-week" "${FRAME_FLAGS[@]}" calendar week --date "$TODAY" --json >/dev/null
 run_json "calendar-sources" "${FRAME_FLAGS[@]}" calendar sources --json >/dev/null
+run_json "calendar-search" "${FRAME_FLAGS[@]}" calendar search --query test --json >/dev/null
+run_json "calendar-countdowns" "${FRAME_FLAGS[@]}" calendar countdowns --start-date "$TODAY" --end-date "$NEXT_WEEK" --json >/dev/null
+run_json "calendar-recent-invites" "${FRAME_FLAGS[@]}" calendar recent-invites --json >/dev/null
 
 lists_out="$(run_json "lists-list" "${FRAME_FLAGS[@]}" lists list --json)"
 LIST_ID="$(json_value "$lists_out" "data[0].id")"
@@ -150,7 +164,23 @@ else
   printf 'SKIP meals-recipe-info: no recipes returned\n' >&2
 fi
 run_json "meals-sittings" "${FRAME_FLAGS[@]}" meals sittings --date-min "$TODAY" --date-max "$NEXT_WEEK" --json >/dev/null
-run_json "photos-list" "${FRAME_FLAGS[@]}" photos list --json >/dev/null
+photos_out="$(run_json "photos-list" "${FRAME_FLAGS[@]}" photos list --json)"
+MESSAGE_ID="$(json_value "$photos_out" "data[0].id")"
+if [[ -n "$MESSAGE_ID" ]]; then
+  run_json "photos-show" "${FRAME_FLAGS[@]}" photos show --message-id "$MESSAGE_ID" --json >/dev/null
+  run_json "photos-likes" "${FRAME_FLAGS[@]}" photos likes --message-id "$MESSAGE_ID" --json >/dev/null
+  run_json "photos-comments" "${FRAME_FLAGS[@]}" photos comments --message-id "$MESSAGE_ID" --json >/dev/null
+else
+  printf 'SKIP photos-show/likes/comments: no photos returned\n' >&2
+fi
+albums_out="$(run_json "albums-list" "${FRAME_FLAGS[@]}" albums list --json)"
+ALBUM_ID="$(json_value "$albums_out" "data[0].id")"
+if [[ -n "$ALBUM_ID" ]]; then
+  run_json "albums-messages" "${FRAME_FLAGS[@]}" albums messages --album-id "$ALBUM_ID" --json >/dev/null
+  run_json "albums-message-ids" "${FRAME_FLAGS[@]}" albums message-ids --album-id "$ALBUM_ID" --json >/dev/null
+else
+  printf 'SKIP albums-messages/message-ids: no albums returned\n' >&2
+fi
 run_optional_json "routines-list" "${FRAME_FLAGS[@]}" routines list --json
 run_json "sidekick-status" --readonly sidekick status --json >/dev/null
 run_json "sidekick-history" "${FRAME_FLAGS[@]}" sidekick history --json >/dev/null

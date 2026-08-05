@@ -9,6 +9,9 @@ Lists and manages calendar events and source calendars.
 | `list` | no | List events in a date range. |
 | `week` | no | Show events for one week. |
 | `sources` | no | List connected calendar sources. |
+| `search` | no | Search events by text. |
+| `countdowns` | no | List countdown events in a date range. |
+| `recent-invites` | no | List recently invited event email addresses. |
 | `create` | yes | Create an event. |
 | `create-countdown` | yes | Create a countdown event. |
 | `update` | yes | Update an event. |
@@ -20,10 +23,15 @@ Lists and manages calendar events and source calendars.
 skycli calendar list --start-date 2026-06-10 --end-date 2026-06-17 --json
 skycli calendar week --date 2026-06-10 --json
 skycli calendar sources --json
+skycli calendar search --query "Dentist" --timezone America/New_York --json
+skycli calendar countdowns --start-date 2026-06-10 --end-date 2026-07-10 --timezone America/New_York --json
+skycli calendar recent-invites --json
 skycli calendar create --title "Dentist" --start-at 2026-06-10T14:00:00-04:00 --end-at 2026-06-10T15:00:00-04:00 --json
 skycli calendar create-countdown --title "Beach trip" --date 2026-07-01 --json
 ```
 
 ## Notes
 
-Date filters use the live API `date_min` and `date_max` query keys.
+Date filters use the live API `date_min` and `date_max` query keys. Countdown
+reads require both bounds. Search and countdown commands default to `UTC` and
+include related categories; pass `--timezone` to match the frame's timezone.

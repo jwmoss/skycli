@@ -691,6 +691,18 @@ func TestReadonlyBlocksMutatingCommands(t *testing.T) {
 func TestReadonlyAllowsReportCommands(t *testing.T) {
 	for _, args := range [][]string{
 		{"analytics", "--days", "7"},
+		{"frames", "device", "--device-id", "device-1"},
+		{"frames", "household-config"},
+		{"frames", "alarms", "--device-id", "device-1"},
+		{"calendar", "search", "--query", "Dentist"},
+		{"calendar", "countdowns", "--start-date", "2026-06-10", "--end-date", "2026-07-10"},
+		{"calendar", "recent-invites"},
+		{"photos", "show", "--message-id", "10"},
+		{"photos", "likes", "--message-id", "10"},
+		{"photos", "comments", "--message-id", "10"},
+		{"albums", "list"},
+		{"albums", "messages", "--album-id", "album-1"},
+		{"albums", "message-ids", "--album-id", "album-1"},
 		{"home", "--date", "2026-06-10"},
 		{"status"},
 		{"watch", "--once"},

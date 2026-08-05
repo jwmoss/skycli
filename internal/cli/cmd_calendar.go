@@ -27,9 +27,67 @@ func runCalendar(rc *runCtx, args []string) int {
 		return calendarDelete(rc, args[1:])
 	case "sources":
 		return calendarSources(rc, args[1:])
+	case "search":
+		return calendarSearch(rc, args[1:])
+	case "countdowns":
+		return calendarCountdowns(rc, args[1:])
+	case "recent-invites":
+		return calendarRecentInvites(rc, args[1:])
 	default:
 		return usage(rc, "unknown calendar subcommand: "+args[0])
 	}
+}
+
+func calendarSearch(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("calendar search", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frameStr := fs.String("frame", "", "frame ID")
+	query := fs.String("query", "", "event search text")
+	timezone := fs.String("timezone", "UTC", "IANA timezone")
+	include := fs.String("include", "categories", "related resources to include")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if err := requireFlagValue(*query, "query"); err != nil {
+		return usage(rc, err.Error())
+	}
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.SearchCalendarEvents(rc.ctx, frameID, skylight.CalendarSearchFilter{Query: *query, Timezone: *timezone, Include: *include})
+	})
+}
+
+func calendarCountdowns(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("calendar countdowns", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frameStr := fs.String("frame", "", "frame ID")
+	start := fs.String("start-date", "", "start date filter YYYY-MM-DD")
+	end := fs.String("end-date", "", "end date filter YYYY-MM-DD")
+	timezone := fs.String("timezone", "UTC", "IANA timezone")
+	include := fs.String("include", "categories", "related resources to include")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if err := requireFlagValue(*start, "start-date"); err != nil {
+		return usage(rc, err.Error())
+	}
+	if err := requireFlagValue(*end, "end-date"); err != nil {
+		return usage(rc, err.Error())
+	}
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ListCountdownEvents(rc.ctx, frameID, skylight.CalendarEventFilter{StartDate: *start, EndDate: *end}, *timezone, *include)
+	})
+}
+
+func calendarRecentInvites(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("calendar recent-invites", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frameStr := fs.String("frame", "", "frame ID")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ListRecentInvitedEmails(rc.ctx, frameID)
+	})
 }
 
 type calendarEventEntry = skylight.CalendarEvent

@@ -147,9 +147,27 @@ func TestResourceMethodsKeepPrivateEndpointDetailsBehindClient(t *testing.T) {
 		call     callFunc
 	}{
 		{"frame devices", http.MethodGet, "/api/frames/123/devices", "", `{}`, func(ctx context.Context, c *Client) error { _, err := c.ListFrameDevices(ctx, 123); return err }},
+		{"frame device", http.MethodGet, "/api/frames/123/devices/device-1", "", `{}`, func(ctx context.Context, c *Client) error {
+			_, err := c.GetFrameDevice(ctx, 123, "device-1")
+			return err
+		}},
+		{"household config", http.MethodGet, "/api/frames/123/household_config", "", `{}`, func(ctx context.Context, c *Client) error { _, err := c.GetHouseholdConfig(ctx, 123); return err }},
+		{"device alarms", http.MethodGet, "/api/frames/123/devices/device-1/alarms", "", `{}`, func(ctx context.Context, c *Client) error {
+			_, err := c.ListDeviceAlarms(ctx, 123, "device-1")
+			return err
+		}},
 		{"avatars", http.MethodGet, "/api/avatars", "", `{}`, func(ctx context.Context, c *Client) error { _, err := c.ListAvatars(ctx); return err }},
 		{"colors", http.MethodGet, "/api/colors", "", `{}`, func(ctx context.Context, c *Client) error { _, err := c.ListColors(ctx); return err }},
 		{"source calendars", http.MethodGet, "/api/frames/123/source_calendars", "", `{}`, func(ctx context.Context, c *Client) error { _, err := c.ListSourceCalendars(ctx, 123); return err }},
+		{"search calendar events", http.MethodGet, "/api/frames/123/calendar_events/search", "include=categories&search_query=Camp&timezone=UTC", `{}`, func(ctx context.Context, c *Client) error {
+			_, err := c.SearchCalendarEvents(ctx, 123, CalendarSearchFilter{Query: "Camp", Timezone: "UTC", Include: "categories"})
+			return err
+		}},
+		{"countdown events", http.MethodGet, "/api/frames/123/calendar_events/countdowns", "date_max=2026-07-31&date_min=2026-07-01&include=categories&timezone=UTC", `{}`, func(ctx context.Context, c *Client) error {
+			_, err := c.ListCountdownEvents(ctx, 123, CalendarEventFilter{StartDate: "2026-07-01", EndDate: "2026-07-31"}, "UTC", "categories")
+			return err
+		}},
+		{"recent invited emails", http.MethodGet, "/api/frames/123/calendar_events/recent_invited_emails", "", `{}`, func(ctx context.Context, c *Client) error { _, err := c.ListRecentInvitedEmails(ctx, 123); return err }},
 		{"create calendar event", http.MethodPost, "/api/frames/123/calendar_events", "", `{}`, func(ctx context.Context, c *Client) error {
 			_, err := c.CreateCalendarEvent(ctx, 123, map[string]any{"summary": "Camp"})
 			return err
@@ -204,6 +222,24 @@ func TestResourceMethodsKeepPrivateEndpointDetailsBehindClient(t *testing.T) {
 		}},
 		{"list photos", http.MethodGet, "/api/frames/123/messages", "page_token=next", `{}`, func(ctx context.Context, c *Client) error {
 			_, err := c.ListPhotoMessages(ctx, 123, "next")
+			return err
+		}},
+		{"get photo", http.MethodGet, "/api/frames/123/messages/10", "", `{}`, func(ctx context.Context, c *Client) error { _, err := c.GetPhotoMessage(ctx, 123, "10"); return err }},
+		{"photo likes", http.MethodGet, "/api/frames/123/messages/10/all_likes", "", `{}`, func(ctx context.Context, c *Client) error {
+			_, err := c.ListPhotoMessageLikes(ctx, 123, "10")
+			return err
+		}},
+		{"photo comments", http.MethodGet, "/api/frames/123/messages/10/comments", "page=2", `{}`, func(ctx context.Context, c *Client) error {
+			_, err := c.ListPhotoMessageComments(ctx, 123, "10", 2)
+			return err
+		}},
+		{"list albums", http.MethodGet, "/api/frames/123/albums", "", `{}`, func(ctx context.Context, c *Client) error { _, err := c.ListAlbums(ctx, 123); return err }},
+		{"album messages", http.MethodGet, "/api/frames/123/albums/album-1/messages", "page=2", `{}`, func(ctx context.Context, c *Client) error {
+			_, err := c.ListAlbumMessages(ctx, 123, "album-1", 2)
+			return err
+		}},
+		{"album message ids", http.MethodGet, "/api/frames/123/albums/album-1/messages/all_ids", "", `{}`, func(ctx context.Context, c *Client) error {
+			_, err := c.ListAlbumMessageIDs(ctx, 123, "album-1")
 			return err
 		}},
 		{"delete photos", http.MethodDelete, "/api/frames/123/messages/destroy_multiple", "", `{}`, func(ctx context.Context, c *Client) error { return c.DeletePhotoMessages(ctx, 123, []int{10, 11}) }},

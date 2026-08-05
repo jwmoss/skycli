@@ -18,6 +18,12 @@ func runFrames(rc *runCtx, args []string) int {
 		return framesShow(rc, args[1:])
 	case "devices":
 		return framesDevices(rc, args[1:])
+	case "device":
+		return framesDevice(rc, args[1:])
+	case "household-config":
+		return framesHouseholdConfig(rc, args[1:])
+	case "alarms":
+		return framesAlarms(rc, args[1:])
 	case "avatars":
 		return runResourceJSON(rc, func(c *skylight.Client) (any, error) {
 			return c.ListAvatars(rc.ctx)
@@ -32,6 +38,50 @@ func runFrames(rc *runCtx, args []string) int {
 		// allow `frames` to be aliased to show
 		return framesShow(rc, args)
 	}
+}
+
+func framesDevice(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("frames device", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frameStr := fs.String("frame", "", "frame ID")
+	deviceID := fs.String("device-id", "", "device ID")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if err := requireFlagValue(*deviceID, "device-id"); err != nil {
+		return usage(rc, err.Error())
+	}
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.GetFrameDevice(rc.ctx, frameID, *deviceID)
+	})
+}
+
+func framesHouseholdConfig(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("frames household-config", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frameStr := fs.String("frame", "", "frame ID")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.GetHouseholdConfig(rc.ctx, frameID)
+	})
+}
+
+func framesAlarms(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("frames alarms", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frameStr := fs.String("frame", "", "frame ID")
+	deviceID := fs.String("device-id", "", "device ID")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if err := requireFlagValue(*deviceID, "device-id"); err != nil {
+		return usage(rc, err.Error())
+	}
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ListDeviceAlarms(rc.ctx, frameID, *deviceID)
+	})
 }
 
 func framesList(rc *runCtx, args []string) int {

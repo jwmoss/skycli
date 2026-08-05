@@ -22,6 +22,20 @@ func (c *Client) ListPhotoMessages(ctx context.Context, frameID int64, pageToken
 	return c.Do(ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/messages", frameID), q, nil)
 }
 
+func (c *Client) GetPhotoMessage(ctx context.Context, frameID int64, messageID string) (json.RawMessage, error) {
+	return c.Do(ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/messages/%s", frameID, messageID), nil, nil)
+}
+
+func (c *Client) ListPhotoMessageLikes(ctx context.Context, frameID int64, messageID string) (json.RawMessage, error) {
+	return c.Do(ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/messages/%s/all_likes", frameID, messageID), nil, nil)
+}
+
+func (c *Client) ListPhotoMessageComments(ctx context.Context, frameID int64, messageID string, page int) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("page", fmt.Sprintf("%d", page))
+	return c.Do(ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/messages/%s/comments", frameID, messageID), q, nil)
+}
+
 func (c *Client) DeletePhotoMessages(ctx context.Context, frameID int64, messageIDs []int) error {
 	body := map[string]any{"message_ids": messageIDs}
 	_, err := c.Do(ctx, http.MethodDelete, fmt.Sprintf("/api/frames/%d/messages/destroy_multiple", frameID), nil, body)

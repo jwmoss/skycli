@@ -4,6 +4,17 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+## v0.1.8 - 2026-08-05
+
+### Added
+
+- Add read-only frame device detail, household configuration, and device alarm
+  commands.
+- Add calendar event search, countdown listing, and recent invite history.
+- Add photo detail, likes, and comments reads.
+- Add read-only photo album listing, paged messages, and complete message ID
+  lookup.
+
 ## v0.1.7 - 2026-07-13
 
 ### Added

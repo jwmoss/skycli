@@ -32,6 +32,12 @@ type CalendarEventFilter struct {
 	EndDate   string
 }
 
+type CalendarSearchFilter struct {
+	Query    string
+	Timezone string
+	Include  string
+}
+
 func (c *Client) ListCalendarEvents(ctx context.Context, frameID int64, filter CalendarEventFilter) (*Collection[CalendarEvent], error) {
 	q := url.Values{}
 	if filter.StartDate != "" {
@@ -49,6 +55,27 @@ func (c *Client) ListCalendarEvents(ctx context.Context, frameID int64, filter C
 
 func (c *Client) ListSourceCalendars(ctx context.Context, frameID int64) (json.RawMessage, error) {
 	return c.Do(ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/source_calendars", frameID), nil, nil)
+}
+
+func (c *Client) SearchCalendarEvents(ctx context.Context, frameID int64, filter CalendarSearchFilter) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("search_query", filter.Query)
+	q.Set("timezone", filter.Timezone)
+	q.Set("include", filter.Include)
+	return c.Do(ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/calendar_events/search", frameID), q, nil)
+}
+
+func (c *Client) ListCountdownEvents(ctx context.Context, frameID int64, filter CalendarEventFilter, timezone, include string) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("date_min", filter.StartDate)
+	q.Set("date_max", filter.EndDate)
+	q.Set("timezone", timezone)
+	q.Set("include", include)
+	return c.Do(ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/calendar_events/countdowns", frameID), q, nil)
+}
+
+func (c *Client) ListRecentInvitedEmails(ctx context.Context, frameID int64) (json.RawMessage, error) {
+	return c.Do(ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/calendar_events/recent_invited_emails", frameID), nil, nil)
 }
 
 func (c *Client) CreateCalendarEvent(ctx context.Context, frameID int64, payload map[string]any) (json.RawMessage, error) {

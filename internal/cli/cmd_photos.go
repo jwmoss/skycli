@@ -20,6 +20,12 @@ func runPhotos(rc *runCtx, args []string) int {
 	switch args[0] {
 	case "list":
 		return photosList(rc, args[1:])
+	case "show":
+		return photosShow(rc, args[1:])
+	case "likes":
+		return photosLikes(rc, args[1:])
+	case "comments":
+		return photosComments(rc, args[1:])
 	case "upload":
 		return photosUpload(rc, args[1:])
 	case "delete":
@@ -29,6 +35,58 @@ func runPhotos(rc *runCtx, args []string) int {
 	default:
 		return usage(rc, "unknown photos subcommand: "+args[0])
 	}
+}
+
+func photosShow(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("photos show", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frameStr := fs.String("frame", "", "frame ID")
+	messageID := fs.String("message-id", "", "photo message ID")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if err := requireFlagValue(*messageID, "message-id"); err != nil {
+		return usage(rc, err.Error())
+	}
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.GetPhotoMessage(rc.ctx, frameID, *messageID)
+	})
+}
+
+func photosLikes(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("photos likes", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frameStr := fs.String("frame", "", "frame ID")
+	messageID := fs.String("message-id", "", "photo message ID")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if err := requireFlagValue(*messageID, "message-id"); err != nil {
+		return usage(rc, err.Error())
+	}
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ListPhotoMessageLikes(rc.ctx, frameID, *messageID)
+	})
+}
+
+func photosComments(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("photos comments", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frameStr := fs.String("frame", "", "frame ID")
+	messageID := fs.String("message-id", "", "photo message ID")
+	page := fs.Int("page", 1, "comments page")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if err := requireFlagValue(*messageID, "message-id"); err != nil {
+		return usage(rc, err.Error())
+	}
+	if *page < 1 {
+		return usage(rc, "--page must be at least 1")
+	}
+	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.ListPhotoMessageComments(rc.ctx, frameID, *messageID, *page)
+	})
 }
 
 func runPhoto(rc *runCtx, args []string) int {

@@ -280,6 +280,8 @@ func topLevelCommands() []command {
 		{"meal", "alias for meals", runMeals},
 		{"photos", "photo list, upload, download, and delete", runPhotos},
 		{"photo", "alias for photos", runPhotos},
+		{"albums", "photo album reads", runAlbums},
+		{"album", "alias for albums", runAlbums},
 		{"routines", "routine list/create/update/delete/reorder", runRoutines},
 		{"routine", "alias for routines", runRoutine},
 		{"sidekick", "inspect Plus access and Sidekick history", runSidekick},
