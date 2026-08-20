@@ -6,7 +6,8 @@ Unofficial. Not affiliated with Skylight. Use with accounts you own.
 
 `skycli` wraps a broad private-API surface: frames, categories, chores,
 rewards, calendar events, lists/grocery, meals, photos/albums, routines, bounties,
-rotations, Sidekick access/history, export/import, status, analytics, and watch.
+rotations, notifications, nudges, month reviews, Sidekick access/history,
+export/import, status, analytics, and watch.
 
 ## Docs
 

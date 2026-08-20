@@ -3,6 +3,7 @@ package cli
 import (
 	"flag"
 	"fmt"
+	"time"
 
 	"github.com/jwmoss/skycli/internal/skylight"
 )
@@ -24,6 +25,14 @@ func runFrames(rc *runCtx, args []string) int {
 		return framesHouseholdConfig(rc, args[1:])
 	case "alarms":
 		return framesAlarms(rc, args[1:])
+	case "notifications":
+		return framesNotifications(rc, args[1:])
+	case "month-reviews":
+		return framesMonthReviews(rc, args[1:])
+	case "reminder-profile":
+		return framesReminderProfile(rc, args[1:])
+	case "nudges":
+		return framesNudges(rc, args[1:])
 	case "avatars":
 		return runResourceJSON(rc, func(c *skylight.Client) (any, error) {
 			return c.ListAvatars(rc.ctx)
@@ -38,6 +47,91 @@ func runFrames(rc *runCtx, args []string) int {
 		// allow `frames` to be aliased to show
 		return framesShow(rc, args)
 	}
+}
+
+func framesNotifications(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("frames notifications", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frameStr := fs.String("frame", "", "frame ID")
+	kind := fs.String("type", "", "notification type: event or task")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if *kind != "event" && *kind != "task" {
+		return usage(rc, "--type must be event or task")
+	}
+	return runFrameResourceJSON(rc, *frameStr, func(
+		c *skylight.Client,
+		frameID int64,
+	) (any, error) {
+		if *kind == "event" {
+			return c.GetEventNotificationSettings(rc.ctx, frameID)
+		}
+		return c.GetTaskNotificationSettings(rc.ctx, frameID)
+	})
+}
+
+func framesMonthReviews(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("frames month-reviews", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	return runResourceJSON(rc, func(c *skylight.Client) (any, error) {
+		return c.ListMonthReviews(rc.ctx)
+	})
+}
+
+func framesReminderProfile(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("frames reminder-profile", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	return runResourceJSON(rc, func(c *skylight.Client) (any, error) {
+		return c.GetReminderProfile(rc.ctx)
+	})
+}
+
+func framesNudges(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("frames nudges", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frameStr := fs.String("frame", "", "frame ID")
+	after := fs.String("after", "", "start time in RFC3339 format")
+	before := fs.String("before", "", "end time in RFC3339 format")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if err := validateNudgeRange(*after, *before); err != nil {
+		return usage(rc, err.Error())
+	}
+	return runFrameResourceJSON(rc, *frameStr, func(
+		c *skylight.Client,
+		frameID int64,
+	) (any, error) {
+		return c.ListNudges(rc.ctx, frameID, *after, *before)
+	})
+}
+
+func validateNudgeRange(after string, before string) error {
+	if err := requireFlagValue(after, "after"); err != nil {
+		return err
+	}
+	if err := requireFlagValue(before, "before"); err != nil {
+		return err
+	}
+	start, err := time.Parse(time.RFC3339, after)
+	if err != nil {
+		return fmt.Errorf("parse --after as RFC3339: %w", err)
+	}
+	end, err := time.Parse(time.RFC3339, before)
+	if err != nil {
+		return fmt.Errorf("parse --before as RFC3339: %w", err)
+	}
+	if end.Before(start) {
+		return fmt.Errorf("--before must not be earlier than --after")
+	}
+	return nil
 }
 
 func framesDevice(rc *runCtx, args []string) int {

@@ -7,6 +7,7 @@ Lists and manages chores. `chore` is an alias.
 | Subcommand | Mutates | Purpose |
 |------------|---------|---------|
 | `list` | no | List chores for a date or date range. |
+| `search` | no | Search current and ended chores by text. |
 | `week` | no | Show a weekly chore/task view. |
 | `streak` | no | Compute completion streaks. |
 | `create` | yes | Create an assigned chore. |
@@ -23,6 +24,7 @@ Lists and manages chores. `chore` is an alias.
 ```bash
 skycli chores list --date 2026-06-10 --json
 skycli chores list --start-date 2026-06-10 --end-date 2026-06-17 --json
+skycli chores search --query "Laundry" --ended-lookback-days 30 --json
 skycli chores week --date 2026-06-10 --json
 skycli chores streak --days 30 --json
 skycli chores create --category 20431525 --summary "Vitamins" --recurrence daily --json
@@ -33,4 +35,5 @@ skycli chores bulk --file chores.json --sleep 5s --json
 
 ## Safety
 
-Use `--readonly` for list/week/streak automation. Mutating subcommands call the live private API.
+Use `--readonly` for list/search/week/streak automation. Mutating subcommands
+call the live private API.

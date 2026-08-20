@@ -4,6 +4,15 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+## v0.1.9 - 2026-08-19
+
+### Added
+
+- Add read-only chore search with ended-chore lookback and result-limit flags.
+- Add event and task notification settings, reminder profile, and month review
+  reads.
+- Add recorded nudge listing for a required RFC3339 time range.
+
 ## v0.1.8 - 2026-08-05
 
 ### Added
