@@ -19,6 +19,8 @@ func runChores(rc *runCtx, args []string) int {
 	switch args[0] {
 	case "list":
 		return choresList(rc, args[1:])
+	case "search":
+		return choresSearch(rc, args[1:])
 	case "week":
 		return choresWeek(rc, args[1:])
 	case "streak":
@@ -45,6 +47,39 @@ func runChores(rc *runCtx, args []string) int {
 }
 
 // ---- list ----
+
+func choresSearch(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("chores search", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frameStr := fs.String("frame", "", "frame ID (default: config default)")
+	query := fs.String("query", "", "chore search text")
+	includeUFG := fs.Bool("include-up-for-grabs", true, "include up-for-grabs chores")
+	lookback := fs.Int("ended-lookback-days", 30, "days of ended chores to search")
+	limit := fs.Int("limit", 100, "maximum result count")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if err := requireFlagValue(*query, "query"); err != nil {
+		return usage(rc, err.Error())
+	}
+	if *lookback < 1 {
+		return usage(rc, "--ended-lookback-days must be greater than zero")
+	}
+	if *limit < 1 {
+		return usage(rc, "--limit must be greater than zero")
+	}
+	return runFrameResourceJSON(rc, *frameStr, func(
+		c *skylight.Client,
+		frameID int64,
+	) (any, error) {
+		return c.SearchChores(rc.ctx, frameID, skylight.ChoreSearchFilter{
+			Query:                  *query,
+			IncludeUpForGrabs:      *includeUFG,
+			EndedChoreLookbackDays: *lookback,
+			Limit:                  *limit,
+		})
+	})
+}
 
 func choresList(rc *runCtx, args []string) int {
 	fs := flag.NewFlagSet("chores list", flag.ContinueOnError)

@@ -16,12 +16,14 @@ fi
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
-TODAY="$(python3 - <<'PY'
+TODAY="$(
+  python3 - <<'PY'
 from datetime import date
 print(date.today().isoformat())
 PY
 )"
-NEXT_WEEK="$(python3 - <<'PY'
+NEXT_WEEK="$(
+  python3 - <<'PY'
 from datetime import date, timedelta
 print((date.today() + timedelta(days=7)).isoformat())
 PY
@@ -132,8 +134,15 @@ fi
 run_json "frames-household-config" "${FRAME_FLAGS[@]}" frames household-config --json >/dev/null
 run_json "frames-avatars" --readonly frames avatars --json >/dev/null
 run_json "frames-colors" --readonly frames colors --json >/dev/null
+run_json "frames-event-notifications" "${FRAME_FLAGS[@]}" frames notifications --type event --json >/dev/null
+run_json "frames-task-notifications" "${FRAME_FLAGS[@]}" frames notifications --type task --json >/dev/null
+run_json "frames-month-reviews" --readonly frames month-reviews --json >/dev/null
+run_json "frames-reminder-profile" --readonly frames reminder-profile --json >/dev/null
+run_json "frames-nudges" "${FRAME_FLAGS[@]}" frames nudges \
+  --after "${TODAY}T00:00:00Z" --before "${NEXT_WEEK}T23:59:59Z" --json >/dev/null
 run_json "categories" "${FRAME_FLAGS[@]}" categories --json >/dev/null
 run_json "chores-list" "${FRAME_FLAGS[@]}" chores list --date "$TODAY" --json >/dev/null
+run_json "chores-search" "${FRAME_FLAGS[@]}" chores search --query test --json >/dev/null
 run_json "chores-week" "${FRAME_FLAGS[@]}" chores week --date "$TODAY" --json >/dev/null
 run_json "chores-streak" "${FRAME_FLAGS[@]}" chores streak --days 7 --json >/dev/null
 run_json "rewards-list" "${FRAME_FLAGS[@]}" rewards list --json >/dev/null

@@ -141,6 +141,10 @@ func buildCommandCatalog() commandCatalogDoc {
 					{Name: "device", Summary: "Show one frame device."},
 					{Name: "household-config", Summary: "Show household display configuration."},
 					{Name: "alarms", Summary: "List alarms for a frame device."},
+					{Name: "notifications", Summary: "Show event or task notification settings."},
+					{Name: "month-reviews", Summary: "List available month reviews."},
+					{Name: "reminder-profile", Summary: "Show the reminder profile."},
+					{Name: "nudges", Summary: "List recorded nudges in a time range."},
 					{Name: "avatars", Summary: "Return raw frame avatar data."},
 					{Name: "colors", Summary: "Return raw frame color data."},
 					{Name: "set-default", Summary: "Save the default frame ID.", Mutates: true},
@@ -166,6 +170,7 @@ func buildCommandCatalog() commandCatalogDoc {
 				Mutates: true,
 				Subcommands: []subcommandDoc{
 					{Name: "list", Summary: "List chores."},
+					{Name: "search", Summary: "Search current and ended chores."},
 					{Name: "week", Summary: "Show a weekly chore/task view."},
 					{Name: "streak", Summary: "Compute completion streaks."},
 					{Name: "create", Summary: "Create an assigned chore.", Mutates: true},
