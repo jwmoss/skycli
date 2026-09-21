@@ -81,10 +81,12 @@ var readOnlyCommands = map[string]bool{
 	"meal recipes":            true,
 	"meal sittings":           true,
 	"photos list":             true,
+	"photos download":         true,
 	"photos comments":         true,
 	"photos likes":            true,
 	"photos show":             true,
 	"photo list":              true,
+	"photo download":          true,
 	"photo comments":          true,
 	"photo likes":             true,
 	"photo show":              true,
@@ -147,6 +149,14 @@ func isReadOnlyInvocation(args []string) bool {
 		return rawIsGET(args[1:])
 	}
 	path := commandPath(args)
+	if !strings.Contains(path, " ") {
+		for _, cmd := range buildCommandCatalog().Commands {
+			if (cmd.Name == path || containsName(cmd.Aliases, path)) && cmd.Default != "" {
+				path = cmd.Name + " " + cmd.Default
+				break
+			}
+		}
+	}
 	if readOnlyCommands[path] {
 		return true
 	}

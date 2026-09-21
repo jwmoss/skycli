@@ -9,7 +9,7 @@ func runCategories(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID (default: config default)")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {

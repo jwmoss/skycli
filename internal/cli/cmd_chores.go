@@ -57,7 +57,7 @@ func choresSearch(rc *runCtx, args []string) int {
 	lookback := fs.Int("ended-lookback-days", 30, "days of ended chores to search")
 	limit := fs.Int("limit", 100, "maximum result count")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*query, "query"); err != nil {
 		return usage(rc, err.Error())
@@ -97,7 +97,7 @@ func choresList(rc *runCtx, args []string) int {
 	onlyUFG := fs.Bool("up-for-grabs", false, "only show up-for-grabs chores")
 	linked := fs.Bool("linked-to-profile", false, "only chores linked to a profile category")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if *after != "" && *startDate != "" && *after != *startDate {
 		return usage(rc, "choose only one of --after or --start-date")
@@ -184,7 +184,7 @@ func choresCreate(rc *runCtx, args []string) int {
 	desc := fs.String("description", "", "optional description")
 	emoji := fs.String("emoji", "", "optional emoji_icon")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if strings.TrimSpace(*summary) == "" && strings.TrimSpace(*title) != "" {
 		*summary = *title
@@ -253,7 +253,7 @@ func choresCreateUpForGrabs(rc *runCtx, args []string) int {
 	desc := fs.String("description", "", "optional description")
 	emoji := fs.String("emoji", "", "optional emoji_icon")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if strings.TrimSpace(*summary) == "" {
 		return usage(rc, "--summary is required")
@@ -311,7 +311,7 @@ func choresUpdate(rc *runCtx, args []string) int {
 	ufg := fs.Bool("up-for-grabs", false, "set up_for_grabs=true")
 	notUFG := fs.Bool("not-up-for-grabs", false, "set up_for_grabs=false")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if strings.TrimSpace(*idStr) == "" && strings.TrimSpace(*choreIDStr) != "" {
 		*idStr = *choreIDStr
@@ -398,7 +398,7 @@ func choresClaim(rc *runCtx, args []string) int {
 	catStr := fs.String("category", "", "category/assignee ID to claim for (required)")
 	assigneeStr := fs.String("assignee-id", "", "alias for --category")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if strings.TrimSpace(*idStr) == "" && strings.TrimSpace(*choreIDStr) != "" {
 		*idStr = *choreIDStr
@@ -440,7 +440,7 @@ func choresSetCompletion(rc *runCtx, args []string, status string) int {
 	idStr := fs.String("id", "", "chore ID to update (required; composite instance IDs are accepted)")
 	choreIDStr := fs.String("chore-id", "", "alias for --id")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if strings.TrimSpace(*idStr) == "" && strings.TrimSpace(*choreIDStr) != "" {
 		*idStr = *choreIDStr
@@ -478,7 +478,7 @@ func choresDelete(rc *runCtx, args []string) int {
 	choreIDStr := fs.String("chore-id", "", "alias for --id")
 	applyTo := fs.String("apply-to", "all", "all | this_only | this_and_following")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if strings.TrimSpace(*idStr) == "" && strings.TrimSpace(*choreIDStr) != "" {
 		*idStr = *choreIDStr
@@ -527,7 +527,7 @@ func choresBulk(rc *runCtx, args []string) int {
 	sleepDur := fs.Duration("sleep", 5*time.Second, "delay between POSTs")
 	stopOnError := fs.Bool("stop-on-error", false, "abort on first failure (default: continue and report)")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {
@@ -541,7 +541,7 @@ func choresBulk(rc *runCtx, args []string) int {
 		if err != nil {
 			return fail(rc, err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		rdr = f
 	}
 	var items []bulkItem
@@ -599,7 +599,7 @@ func choresBulk(rc *runCtx, args []string) int {
 			results = append(results, map[string]any{"index": i, "ok": false, "summary": it.Summary, "error": err.Error()})
 			failures++
 			if !rc.g.asJSON {
-				fmt.Fprintf(rc.stderr, "[%d/%d] FAIL %s: %v\n", i+1, len(items), it.Summary, err)
+				_, _ = fmt.Fprintf(rc.stderr, "[%d/%d] FAIL %s: %v\n", i+1, len(items), it.Summary, err)
 			}
 			if *stopOnError {
 				break
@@ -608,7 +608,7 @@ func choresBulk(rc *runCtx, args []string) int {
 			results = append(results, map[string]any{"index": i, "ok": true, "id": ch.ID, "summary": ch.Attributes.Summary})
 			successes++
 			if !rc.g.asJSON {
-				fmt.Fprintf(rc.stderr, "[%d/%d] OK   id=%s %s\n", i+1, len(items), ch.ID, ch.Attributes.Summary)
+				_, _ = fmt.Fprintf(rc.stderr, "[%d/%d] OK   id=%s %s\n", i+1, len(items), ch.ID, ch.Attributes.Summary)
 			}
 		}
 		if i < len(items)-1 {
@@ -626,7 +626,7 @@ func choresBulk(rc *runCtx, args []string) int {
 			"results":  results,
 		})
 	} else {
-		fmt.Fprintf(rc.stderr, "done: %d ok, %d failed\n", successes, failures)
+		_, _ = fmt.Fprintf(rc.stderr, "done: %d ok, %d failed\n", successes, failures)
 	}
 	if failures > 0 {
 		return exitErr

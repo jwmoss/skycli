@@ -34,7 +34,7 @@ func TestVerifiedFeatureCommandsRunInReadonlyMode(t *testing.T) {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{}`)
+		_, _ = fmt.Fprint(w, `{}`)
 	}))
 	defer api.Close()
 

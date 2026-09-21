@@ -41,7 +41,7 @@ func mealCategories(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
 		return c.ListMealCategories(rc.ctx, frameID)
@@ -53,7 +53,7 @@ func mealRecipes(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
 		return c.ListRecipes(rc.ctx, frameID)
@@ -66,7 +66,7 @@ func mealRecipeInfo(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	recipeID := fs.String("recipe-id", "", "recipe ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*recipeID, "recipe-id"); err != nil {
 		return usage(rc, err.Error())
@@ -102,7 +102,7 @@ func mealCreateRecipe(rc *runCtx, args []string) int {
 	categoryID := fs.String("meal-category-id", "", "meal category ID")
 	body, bodyFile := bodyFlags(fs, rc)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	payload, err := mealRecipePayload(rc, fs, *body, *bodyFile, *title, *description, *ingredients, *recipeURL, *categoryID)
 	if err != nil {
@@ -128,7 +128,7 @@ func mealUpdateRecipe(rc *runCtx, args []string) int {
 	categoryID := fs.String("meal-category-id", "", "meal category ID")
 	body, bodyFile := bodyFlags(fs, rc)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*recipeID, "recipe-id"); err != nil {
 		return usage(rc, err.Error())
@@ -148,7 +148,7 @@ func mealDeleteRecipe(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	recipeID := fs.String("recipe-id", "", "recipe ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*recipeID, "recipe-id"); err != nil {
 		return usage(rc, err.Error())
@@ -165,7 +165,7 @@ func mealSittings(rc *runCtx, args []string) int {
 	dateMin := fs.String("date-min", "", "minimum date YYYY-MM-DD")
 	dateMax := fs.String("date-max", "", "maximum date YYYY-MM-DD")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
 		return c.ListMealSittings(rc.ctx, frameID, skylight.MealSittingFilter{StartDate: *dateMin, EndDate: *dateMax})
@@ -182,7 +182,7 @@ func mealCreateSitting(rc *runCtx, args []string) int {
 	categoryID := fs.String("meal-category-id", "", "meal category ID")
 	body, bodyFile := bodyFlags(fs, rc)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	payload, err := readPayload(rc, *body, *bodyFile)
 	if err != nil {
@@ -204,7 +204,7 @@ func mealDeleteSitting(rc *runCtx, args []string) int {
 	sittingID := fs.String("sitting-id", "", "sitting ID")
 	date := fs.String("date", "", "instance date YYYY-MM-DD")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*sittingID, "sitting-id"); err != nil {
 		return usage(rc, err.Error())
@@ -223,7 +223,7 @@ func mealAddToGrocery(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	recipeID := fs.String("recipe-id", "", "recipe ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*recipeID, "recipe-id"); err != nil {
 		return usage(rc, err.Error())

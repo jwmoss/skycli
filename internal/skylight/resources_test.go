@@ -21,18 +21,18 @@ func TestResourceCollectionsOwnPathsQueriesAndDecoding(t *testing.T) {
 			if got := r.URL.Query().Get("date_max"); got != "2026-07-07" {
 				t.Fatalf("calendar date_max = %q", got)
 			}
-			fmt.Fprint(w, `{"data":[{"id":"event-1","attributes":{"summary":"Camp"}}],"meta":{"page":1}}`)
+			_, _ = fmt.Fprint(w, `{"data":[{"id":"event-1","attributes":{"summary":"Camp"}}],"meta":{"page":1}}`)
 		case "/api/frames/123/lists":
-			fmt.Fprint(w, `{"data":[{"id":"list-1","type":"list","attributes":{"label":"Groceries","kind":"grocery"}}]}`)
+			_, _ = fmt.Fprint(w, `{"data":[{"id":"list-1","type":"list","attributes":{"label":"Groceries","kind":"grocery"}}]}`)
 		case "/api/frames/123/lists/list-1":
-			fmt.Fprint(w, `{"data":{"id":"list-1","type":"list","attributes":{"label":"Groceries"}},"included":[{"id":"item-1","type":"list_item","attributes":{"label":"Milk","status":"pending"}},{"id":"other-1","type":"other","attributes":{"label":"ignore"}}]}`)
+			_, _ = fmt.Fprint(w, `{"data":{"id":"list-1","type":"list","attributes":{"label":"Groceries"}},"included":[{"id":"item-1","type":"list_item","attributes":{"label":"Milk","status":"pending"}},{"id":"other-1","type":"other","attributes":{"label":"ignore"}}]}`)
 		case "/api/frames/123/meals/recipes":
-			fmt.Fprint(w, `{"data":[{"id":"recipe-1","attributes":{"summary":"Tacos"}}]}`)
+			_, _ = fmt.Fprint(w, `{"data":[{"id":"recipe-1","attributes":{"summary":"Tacos"}}]}`)
 		case "/api/frames/123/meals/sittings":
 			if got := r.URL.Query().Get("date_min"); got != "2026-07-01" {
 				t.Fatalf("sittings date_min = %q", got)
 			}
-			fmt.Fprint(w, `{"data":[{"id":"sitting-1","attributes":{"summary":"Dinner","date":"2026-07-01"}}]}`)
+			_, _ = fmt.Fprint(w, `{"data":[{"id":"sitting-1","attributes":{"summary":"Dinner","date":"2026-07-01"}}]}`)
 		default:
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.RequestURI())
 		}
@@ -74,11 +74,11 @@ func TestResourceMutationsOwnExactPrivateEndpoints(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/api/frames/123/lists/list-1/list_items":
-			fmt.Fprint(w, `{"data":{"id":"item-1"}}`)
+			_, _ = fmt.Fprint(w, `{"data":{"id":"item-1"}}`)
 		case r.Method == http.MethodDelete && r.URL.Path == "/api/frames/123/meals/sittings/sitting-1/instances/2026-07-01":
-			fmt.Fprint(w, `{}`)
+			_, _ = fmt.Fprint(w, `{}`)
 		case r.Method == http.MethodPatch && r.URL.Path == "/api/frames/123/routines/reorder":
-			fmt.Fprint(w, `{}`)
+			_, _ = fmt.Fprint(w, `{}`)
 		default:
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
@@ -106,9 +106,9 @@ func TestSidekickReadsUseSanitizedAccessAndIntentResources(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/api/plus_access":
-			fmt.Fprint(w, `{"data":{"bundle_entitlement":{"available":false},"self_serve_trial_eligibility":{"assistant":true},"subscriptions":[{"id":"private-subscription-id","attributes":{"plus_type":"cal_plus","status":"active","billing_provider":"stripe"}},{"id":"old","attributes":{"plus_type":"cal_plus","status":"expired"}}]}}`)
+			_, _ = fmt.Fprint(w, `{"data":{"bundle_entitlement":{"available":false},"self_serve_trial_eligibility":{"assistant":true},"subscriptions":[{"id":"private-subscription-id","attributes":{"plus_type":"cal_plus","status":"active","billing_provider":"stripe"}},{"id":"old","attributes":{"plus_type":"cal_plus","status":"expired"}}]}}`)
 		case "/api/frames/123/auto_creation_intents":
-			fmt.Fprint(w, `{"data":[{"id":"intent-1","type":"auto_creation_intent"}]}`)
+			_, _ = fmt.Fprint(w, `{"data":[{"id":"intent-1","type":"auto_creation_intent"}]}`)
 		default:
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
@@ -266,7 +266,7 @@ func TestResourceMethodsKeepPrivateEndpointDetailsBehindClient(t *testing.T) {
 					t.Fatalf("request = %s %s?%s, want %s %s?%s", r.Method, r.URL.Path, r.URL.RawQuery, tt.method, tt.path, tt.query)
 				}
 				w.Header().Set("Content-Type", "application/json")
-				fmt.Fprint(w, tt.response)
+				_, _ = fmt.Fprint(w, tt.response)
 			}))
 			defer srv.Close()
 

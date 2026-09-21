@@ -35,3 +35,6 @@ skycli calendar create-countdown --title "Beach trip" --date 2026-07-01 --json
 Date filters use the live API `date_min` and `date_max` query keys. Countdown
 reads require both bounds. Search and countdown commands default to `UTC` and
 include related categories; pass `--timezone` to match the frame's timezone.
+
+Weekly views group timed events in the selected frame timezone.
+All-day dates stay unchanged. Missing frame timezone data falls back to the host timezone.

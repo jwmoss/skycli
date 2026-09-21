@@ -17,7 +17,7 @@ Work style: concise, direct, repo-first. Prefer short bullets over long prose.
 - Individual checks: `make fmt`, `make test`, `make vet`, `make build`.
 - Release config check: `make release-check`.
 - Local release dry run: `make release-snapshot`.
-- Homebrew verify after a release: `brew install jwmoss/tap/skycli && skycli version`.
+- Homebrew verify after a release: `brew install --cask jwmoss/tap/skycli && skycli version`.
 
 ## Project Defaults
 
@@ -59,5 +59,7 @@ Work style: concise, direct, repo-first. Prefer short bullets over long prose.
 
 - Changelog first: user-facing changes belong in `CHANGELOG.md`.
 - Tag format: `vX.Y.Z`.
-- Release workflow uses the pinned GoReleaser version from `Makefile` and publishes GitHub assets plus the `jwmoss/homebrew-tap` formula.
-- After release, verify GitHub release assets, tap formula, `brew install`, and `skycli version`.
+- Release workflow uses the pinned GoReleaser version from `.goreleaser-version` and publishes GitHub assets plus the `jwmoss/homebrew-tap` cask.
+- After release, verify GitHub release assets, tap cask, `brew install`, and `skycli version`.
+
+Version 0.2.0 replaces the Homebrew formula with a cask. Follow the README migration steps for an existing formula install.

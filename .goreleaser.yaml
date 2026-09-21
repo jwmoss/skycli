@@ -41,7 +41,7 @@ checksum:
 changelog:
   sort: asc
 
-brews:
+homebrew_casks:
   - name: skycli
     ids:
       - skycli
@@ -49,11 +49,9 @@ brews:
       owner: jwmoss
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
+    directory: Casks
     homepage: "https://github.com/jwmoss/skycli"
     description: "Unofficial CLI for the Skylight Calendar private API"
     license: MIT
-    install: |
-      bin.install "skycli"
-    test: |
-      system "#{bin}/skycli", "version"
+    binaries:
+      - skycli

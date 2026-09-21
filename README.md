@@ -13,6 +13,7 @@ export/import, status, analytics, and watch.
 
 - [Agent instructions](AGENTS.md)
 - [Command index](docs/commands/README.md)
+- [API capabilities and gaps](docs/api-capabilities.md)
 - Machine-readable command catalog: `skycli commands --json`
 
 ## Install
@@ -21,13 +22,13 @@ export/import, status, analytics, and watch.
 
 ```bash
 brew tap jwmoss/tap
-brew install skycli
+brew install --cask skycli
 ```
 
 Or:
 
 ```bash
-brew install jwmoss/tap/skycli
+brew install --cask jwmoss/tap/skycli
 ```
 
 ### Go
@@ -44,6 +45,16 @@ cd ~/github/skycli
 make build
 ./skycli version
 ```
+
+Version 0.2.0 uses a Homebrew cask. To upgrade from the previous formula,
+remove the formula and install the cask:
+
+```bash
+brew uninstall --formula skycli
+brew install --cask jwmoss/tap/skycli
+```
+
+The cask supplies macOS and Linux binaries. Windows users can use the release ZIP.
 
 ## Quick start
 
@@ -151,13 +162,12 @@ make release-snapshot
 
 CI intentionally stays small: cross-platform `go test`, `go vet`, and
 `go build`. Release checks are separate so local development stays fast while
-tagged builds still validate the GoReleaser configuration and Homebrew formula
+tagged builds still validate the GoReleaser configuration and Homebrew cask
 generation path.
 
 ## Release
 
-The GoReleaser version is pinned by `GORELEASER_VERSION` in `Makefile` and must
-match `.github/workflows/release.yml`. Before tagging, run:
+The GoReleaser version is pinned in `.goreleaser-version`. Local checks and CI read the same file. Before tagging, run:
 
 ```bash
 make ci
@@ -166,7 +176,7 @@ make release-snapshot
 ```
 
 Tagging `vX.Y.Z` triggers GoReleaser to build release archives, publish GitHub
-release assets, and update the `jwmoss/homebrew-tap` formula. The release
+release assets, and update the `jwmoss/homebrew-tap` cask. The release
 workflow needs a `HOMEBREW_TAP_TOKEN` secret with write access to that tap
 repository.
 
@@ -179,3 +189,9 @@ first-class flags are added.
 ## License
 
 MIT
+
+Export/import handles selected resource templates, not full account backups.
+Imports validate references and support the same frame only.
+Use `skycli <group> --help` to list commands, then `skycli <group> <command> --help` for flags.
+Optional live smoke checks skip only explicit HTTP 403/404 responses.
+Authentication, rate-limit, server, transport, and JSON failures fail the smoke check.

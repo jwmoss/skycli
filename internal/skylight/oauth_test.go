@@ -30,7 +30,7 @@ func TestRefreshOAuthTokenPostsRefreshGrant(t *testing.T) {
 		checkForm(t, r, "skylight_api_client_device_fingerprint", "fp-1")
 
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"access_token":"newaccess","refresh_token":"newrefresh","expires_in":7200,"token_type":"Bearer"}`)
+		_, _ = fmt.Fprint(w, `{"access_token":"newaccess","refresh_token":"newrefresh","expires_in":7200,"token_type":"Bearer"}`)
 	}))
 	defer srv.Close()
 
@@ -66,7 +66,7 @@ func TestLoginOAuthHeadlessFlow(t *testing.T) {
 			if r.Method != http.MethodGet {
 				t.Fatalf("session new method: %s", r.Method)
 			}
-			fmt.Fprint(w, `<input type="hidden" name="authenticity_token" value="csrf-123" />`)
+			_, _ = fmt.Fprint(w, `<input type="hidden" name="authenticity_token" value="csrf-123" />`)
 		case "/auth/session":
 			sawSession = true
 			if r.Method != http.MethodPost {
@@ -109,7 +109,7 @@ func TestLoginOAuthHeadlessFlow(t *testing.T) {
 			checkForm(t, r, "scope", "everything")
 			checkForm(t, r, "skylight_api_client_device_fingerprint", "fp-login")
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"access_token":"access-login","refresh_token":"refresh-login","expires_in":3600,"token_type":"Bearer"}`)
+			_, _ = fmt.Fprint(w, `{"access_token":"access-login","refresh_token":"refresh-login","expires_in":3600,"token_type":"Bearer"}`)
 		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}

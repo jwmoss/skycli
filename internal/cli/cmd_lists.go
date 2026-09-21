@@ -79,7 +79,7 @@ func listsAllKind(rc *runCtx, args []string, kind string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if kind == "" {
 		return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
@@ -110,7 +110,7 @@ func listsInfo(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	listID := fs.String("list-id", "", "list ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*listID, "list-id"); err != nil {
 		return usage(rc, err.Error())
@@ -130,7 +130,7 @@ func listsCreate(rc *runCtx, args []string) int {
 	hide := fs.Bool("hide-from-frame", false, "hide list from frame")
 	body, bodyFile := bodyFlags(fs, rc)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	payload, err := readPayload(rc, *body, *bodyFile)
 	if err != nil {
@@ -164,7 +164,7 @@ func groceryAdd(rc *runCtx, args []string) int {
 	title := fs.String("title", "", "single item title")
 	itemsRaw := fs.String("items", "", "comma-separated item titles")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*listID, "list-id"); err != nil {
 		return usage(rc, err.Error())
@@ -214,7 +214,7 @@ func listsUpdate(rc *runCtx, args []string) int {
 	hide := fs.Bool("hide-from-frame", false, "hide list from frame")
 	body, bodyFile := bodyFlags(fs, rc)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*listID, "list-id"); err != nil {
 		return usage(rc, err.Error())
@@ -238,7 +238,7 @@ func listsDelete(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	listID := fs.String("list-id", "", "list ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*listID, "list-id"); err != nil {
 		return usage(rc, err.Error())
@@ -258,7 +258,7 @@ func listsAddItem(rc *runCtx, args []string) int {
 	completed := fs.Bool("completed", false, "mark item completed")
 	body, bodyFile := bodyFlags(fs, rc)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*listID, "list-id"); err != nil {
 		return usage(rc, err.Error())
@@ -291,7 +291,7 @@ func listsUpdateItem(rc *runCtx, args []string) int {
 	pending := fs.Bool("pending", false, "mark item pending")
 	body, bodyFile := bodyFlags(fs, rc)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*listID, "list-id"); err != nil {
 		return usage(rc, err.Error())
@@ -326,7 +326,7 @@ func listsDeleteItem(rc *runCtx, args []string) int {
 	listID := fs.String("list-id", "", "list ID")
 	itemID := fs.String("item-id", "", "item ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*listID, "list-id"); err != nil {
 		return usage(rc, err.Error())
@@ -345,7 +345,7 @@ func listsAction(rc *runCtx, args []string, action string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	listID := fs.String("list-id", "", "list ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*listID, "list-id"); err != nil {
 		return usage(rc, err.Error())
@@ -362,7 +362,7 @@ func listsOrder(rc *runCtx, args []string) int {
 	listID := fs.String("list-id", "", "list ID")
 	retailer := fs.String("retailer", "", "retailer slug")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*listID, "list-id"); err != nil {
 		return usage(rc, err.Error())
@@ -381,7 +381,7 @@ func taskBoxItemsList(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
 		return c.ListTaskBoxItems(rc.ctx, frameID)
@@ -394,7 +394,7 @@ func taskBoxItemCreate(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	title := fs.String("title", "", "task box item title")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*title, "title"); err != nil {
 		return usage(rc, err.Error())
@@ -411,7 +411,7 @@ func listsClearCompleted(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	listID := fs.String("list-id", "", "list ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*listID, "list-id"); err != nil {
 		return usage(rc, err.Error())

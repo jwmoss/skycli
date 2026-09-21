@@ -40,7 +40,7 @@ func rotationCreate(rc *runCtx, args []string) int {
 	points := fs.Int("points", 0, "reward points per chore")
 	recurrence := fs.String("recurrence", "", "optional recurrence shorthand/raw RRULE for each created chore")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	chores := parseCSVStrings(*choreList)
 	assignees, err := parseCategoryList(*assigneeList)
@@ -96,7 +96,7 @@ func rotationCreate(rc *runCtx, args []string) int {
 						"created": created,
 					})
 				} else {
-					fmt.Fprintf(rc.stderr, "error creating %q for week %d: %v\n", title, week+1, err)
+					_, _ = fmt.Fprintf(rc.stderr, "error creating %q for week %d: %v\n", title, week+1, err)
 				}
 				return exitErr
 			}

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -43,7 +42,7 @@ func photosShow(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	messageID := fs.String("message-id", "", "photo message ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*messageID, "message-id"); err != nil {
 		return usage(rc, err.Error())
@@ -59,7 +58,7 @@ func photosLikes(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	messageID := fs.String("message-id", "", "photo message ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*messageID, "message-id"); err != nil {
 		return usage(rc, err.Error())
@@ -76,7 +75,7 @@ func photosComments(rc *runCtx, args []string) int {
 	messageID := fs.String("message-id", "", "photo message ID")
 	page := fs.Int("page", 1, "comments page")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*messageID, "message-id"); err != nil {
 		return usage(rc, err.Error())
@@ -89,17 +88,13 @@ func photosComments(rc *runCtx, args []string) int {
 	})
 }
 
-func runPhoto(rc *runCtx, args []string) int {
-	return runPhotos(rc, args)
-}
-
 func photosList(rc *runCtx, args []string) int {
 	fs := flag.NewFlagSet("photos list", flag.ContinueOnError)
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	pageToken := fs.String("page-token", "__START__", "pagination token")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
 		return c.ListPhotoMessages(rc.ctx, frameID, *pageToken)
@@ -112,7 +107,7 @@ func photosDelete(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	ids := fs.String("message-ids", "", "comma-separated message IDs")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*ids, "message-ids"); err != nil {
 		return usage(rc, err.Error())
@@ -134,7 +129,7 @@ func photosUpload(rc *runCtx, args []string) int {
 	ext := fs.String("ext", "", "file extension override")
 	caption := fs.String("caption", "", "caption")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*filePath, "file"); err != nil {
 		return usage(rc, err.Error())
@@ -143,7 +138,12 @@ func photosUpload(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
-	data, err := os.ReadFile(*filePath)
+	file, err := os.Open(*filePath)
+	if err != nil {
+		return fail(rc, err)
+	}
+	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
 	if err != nil {
 		return fail(rc, err)
 	}
@@ -162,16 +162,17 @@ func photosUpload(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
-	req, err := http.NewRequestWithContext(rc.ctx, http.MethodPut, target.UploadURL, bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(rc.ctx, http.MethodPut, target.UploadURL, file)
 	if err != nil {
 		return fail(rc, err)
 	}
 	req.Header.Set("Content-Type", contentTypeForExt(e))
-	resp, err := http.DefaultClient.Do(req)
+	req.ContentLength = info.Size()
+	resp, err := (&http.Client{Timeout: rc.g.timeout}).Do(req)
 	if err != nil {
 		return fail(rc, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, resp.Body)
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		return fail(rc, fmt.Errorf("upload failed with status %d", resp.StatusCode))
@@ -190,7 +191,7 @@ func photosDownload(rc *runCtx, args []string) int {
 	assetURL := fs.String("asset-url", "", "asset URL from photos list")
 	out := fs.String("out", "", "output file path")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*assetURL, "asset-url"); err != nil {
 		return usage(rc, err.Error())
@@ -202,20 +203,27 @@ func photosDownload(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := (&http.Client{Timeout: rc.g.timeout}).Do(req)
 	if err != nil {
 		return fail(rc, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fail(rc, fmt.Errorf("download failed with status %d", resp.StatusCode))
 	}
-	f, err := os.Create(*out)
+	f, err := os.CreateTemp(filepath.Dir(*out), ".skycli-download-*")
 	if err != nil {
 		return fail(rc, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
+	defer func() { _ = os.Remove(f.Name()) }()
 	if _, err := io.Copy(f, resp.Body); err != nil {
+		return fail(rc, err)
+	}
+	if err := f.Close(); err != nil {
+		return fail(rc, err)
+	}
+	if err := os.Rename(f.Name(), *out); err != nil {
 		return fail(rc, err)
 	}
 	if rc.g.asJSON {

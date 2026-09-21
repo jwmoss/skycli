@@ -68,13 +68,24 @@ func New(baseURL, token string, opts ...Option) *Client {
 		apiVersion: "2026-04-15",
 		authScheme: "Bearer",
 		token:      token,
-		http:       &http.Client{Timeout: 30 * time.Second},
+		http:       &http.Client{Timeout: 30 * time.Second, CheckRedirect: checkRedirect},
 		userAgent:  "skycli/0.1",
 	}
 	for _, o := range opts {
 		o(c)
 	}
 	return c
+}
+
+// Redirects must not replay credentials or request bodies to another origin.
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return fmt.Errorf("stopped after 10 redirects")
+	}
+	if len(via) > 0 && !sameOrigin(via[0].URL.String(), req.URL.String()) {
+		return fmt.Errorf("refusing cross-origin redirect")
+	}
+	return nil
 }
 
 type APIError struct {
@@ -138,7 +149,7 @@ func (c *Client) Do(ctx context.Context, method, path string, query url.Values, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err

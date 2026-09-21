@@ -2,16 +2,17 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
+	"github.com/jwmoss/skycli/internal/config"
 	"github.com/jwmoss/skycli/internal/skylight"
 )
 
@@ -31,7 +32,7 @@ func runWatch(rc *runCtx, args []string) int {
 	persist := fs.Bool("persist", false, "persist seen reward IDs across restarts")
 	once := fs.Bool("once", false, "poll once and exit after seeding")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if *interval < time.Second {
 		return usage(rc, "--interval must be at least 1s")
@@ -40,9 +41,9 @@ func runWatch(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
-	resources := parseWatchResourceList(*resourcesRaw)
-	if len(resources) == 0 {
-		return usage(rc, "no valid resources selected")
+	resources, err := parseWatchResourceList(*resourcesRaw)
+	if err != nil {
+		return usage(rc, err.Error())
 	}
 	c, err := rc.client()
 	if err != nil {
@@ -51,16 +52,35 @@ func runWatch(rc *runCtx, args []string) int {
 	state := newWatchState()
 	statePath := ""
 	if *persist {
-		statePath = watchStatePath()
-		_ = loadWatchState(statePath, state)
+		user, err := c.GetUser(rc.ctx)
+		if err != nil {
+			return fail(rc, err)
+		}
+		if user.ID == "" {
+			return fail(rc, fmt.Errorf("user response has no ID for watch persistence"))
+		}
+		statePath, err = rc.watchStatePath(frameID, user.ID)
+		if err != nil {
+			return fail(rc, err)
+		}
+		if err := loadWatchState(statePath, state); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fail(rc, err)
+		}
 	}
-	ctx, stop := signal.NotifyContext(rc.ctx, os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	loc, err := rc.frameLocation(frameID)
+	if err != nil {
+		return fail(rc, err)
+	}
+	ctx := rc.ctx
 	state.seeding = true
-	pollWatch(ctx, rc, c, frameID, state, resources)
+	if err := pollWatch(ctx, rc, frameID, state, resources, loc); err != nil {
+		return fail(rc, err)
+	}
 	state.seeding = false
 	if *persist && statePath != "" {
-		_ = saveWatchState(statePath, state)
+		if err := saveWatchState(statePath, state); err != nil {
+			return fail(rc, err)
+		}
 	}
 	if *once {
 		if rc.g.asJSON {
@@ -85,16 +105,22 @@ func runWatch(rc *runCtx, args []string) int {
 		select {
 		case <-ctx.Done():
 			if *persist && statePath != "" {
-				_ = saveWatchState(statePath, state)
+				if err := saveWatchState(statePath, state); err != nil {
+					return fail(rc, err)
+				}
 			}
 			if !rc.g.asJSON {
 				rc.out.Line("stopped")
 			}
 			return exitOK
 		case <-ticker.C:
-			pollWatch(ctx, rc, c, frameID, state, resources)
+			if err := pollWatch(ctx, rc, frameID, state, resources, loc); err != nil {
+				return fail(rc, err)
+			}
 			if *persist && statePath != "" {
-				_ = saveWatchState(statePath, state)
+				if err := saveWatchState(statePath, state); err != nil {
+					return fail(rc, err)
+				}
 			}
 		}
 	}
@@ -108,40 +134,50 @@ func newWatchState() *watchState {
 	}
 }
 
-func parseWatchResourceList(raw string) []string {
+func parseWatchResourceList(raw string) ([]string, error) {
 	all := []string{"rewards", "chores", "calendar"}
-	if raw == "" || raw == "all" {
-		return all
+	selected, err := parseResourceSelection(raw, all)
+	if err != nil {
+		return nil, err
 	}
-	valid := map[string]bool{"rewards": true, "chores": true, "calendar": true}
 	out := []string{}
-	for _, r := range parseCSVStrings(raw) {
-		if valid[r] {
+	for _, r := range all {
+		if selected[r] {
 			out = append(out, r)
 		}
 	}
-	return out
+	return out, nil
 }
 
-func pollWatch(ctx context.Context, rc *runCtx, c *skylight.Client, frameID int64, state *watchState, resources []string) {
-	_ = ctx
+func pollWatch(ctx context.Context, rc *runCtx, frameID int64, state *watchState, resources []string, loc *time.Location) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	c, err := rc.client()
+	if err != nil {
+		return err
+	}
+	todayDate := time.Now().In(loc).Format(dateLayout)
 	for _, resource := range resources {
 		switch resource {
 		case "rewards":
-			pollWatchRewards(rc, c, frameID, state)
+			err = pollWatchRewards(rc, c, frameID, state)
 		case "chores":
-			pollWatchChores(rc, c, frameID, state)
+			err = pollWatchChores(rc, c, frameID, state, todayDate)
 		case "calendar":
-			pollWatchCalendar(rc, frameID, state)
+			err = pollWatchCalendar(rc, c, frameID, state, todayDate)
+		}
+		if err != nil {
+			return err
 		}
 	}
+	return nil
 }
 
-func pollWatchRewards(rc *runCtx, c *skylight.Client, frameID int64, state *watchState) {
+func pollWatchRewards(rc *runCtx, c *skylight.Client, frameID int64, state *watchState) error {
 	rewards, err := c.ListRewards(rc.ctx, frameID)
 	if err != nil {
-		fmt.Fprintf(rc.stderr, "watch rewards: %v\n", err)
-		return
+		return fmt.Errorf("watch rewards: %w", err)
 	}
 	for _, r := range rewards {
 		if r.Attributes.RedeemedAt == nil || state.SeenRewardIDs[r.ID] {
@@ -154,10 +190,10 @@ func pollWatchRewards(rc *runCtx, c *skylight.Client, frameID int64, state *watc
 		event := map[string]any{"type": "reward_redeemed", "id": r.ID, "title": r.Attributes.Name, "points": r.Attributes.PointValue, "ts": time.Now().Format(time.RFC3339)}
 		printWatchEvent(rc, event, "REWARD REDEEMED %s (%d pts)", r.Attributes.Name, r.Attributes.PointValue)
 	}
+	return nil
 }
 
-func pollWatchChores(rc *runCtx, c *skylight.Client, frameID int64, state *watchState) {
-	todayDate := today()
+func pollWatchChores(rc *runCtx, c *skylight.Client, frameID int64, state *watchState, todayDate string) error {
 	chores, err := c.ListChores(rc.ctx, frameID, skylight.ChoreFilter{
 		Date:        todayDate,
 		After:       todayDate,
@@ -166,8 +202,7 @@ func pollWatchChores(rc *runCtx, c *skylight.Client, frameID int64, state *watch
 		IncludeLate: true,
 	})
 	if err != nil {
-		fmt.Fprintf(rc.stderr, "watch chores: %v\n", err)
-		return
+		return fmt.Errorf("watch chores: %w", err)
 	}
 	for _, ch := range chores {
 		if state.SeenChoreIDs[ch.ID] {
@@ -180,16 +215,16 @@ func pollWatchChores(rc *runCtx, c *skylight.Client, frameID int64, state *watch
 		event := map[string]any{"type": "chore_completed", "id": ch.ID, "title": ch.Attributes.Summary, "ts": time.Now().Format(time.RFC3339)}
 		printWatchEvent(rc, event, "CHORE COMPLETED %s", ch.Attributes.Summary)
 	}
+	return nil
 }
 
-func pollWatchCalendar(rc *runCtx, frameID int64, state *watchState) {
-	events, err := fetchCalendarEvents(rc, frameID, today(), today())
+func pollWatchCalendar(rc *runCtx, c *skylight.Client, frameID int64, state *watchState, todayDate string) error {
+	events, err := c.ListCalendarEvents(rc.ctx, frameID, skylight.CalendarEventFilter{StartDate: todayDate, EndDate: todayDate})
 	if err != nil {
-		fmt.Fprintf(rc.stderr, "watch calendar: %v\n", err)
-		return
+		return fmt.Errorf("watch calendar: %w", err)
 	}
 	now := time.Now()
-	for _, ev := range events {
+	for _, ev := range events.Data {
 		if state.SeenEventIDs[ev.ID] || ev.Attributes.AllDay || ev.Attributes.StartsAt == "" {
 			continue
 		}
@@ -208,6 +243,7 @@ func pollWatchCalendar(rc *runCtx, frameID int64, state *watchState) {
 		event := map[string]any{"type": "event_soon", "id": ev.ID, "title": ev.Attributes.Summary, "start_at": ev.Attributes.StartsAt, "minutes_until": int(until.Minutes()), "ts": now.Format(time.RFC3339)}
 		printWatchEvent(rc, event, "EVENT SOON %s starts in %d min", ev.Attributes.Summary, int(until.Minutes()))
 	}
+	return nil
 }
 
 func printWatchEvent(rc *runCtx, event map[string]any, format string, args ...any) {
@@ -218,12 +254,17 @@ func printWatchEvent(rc *runCtx, event map[string]any, format string, args ...an
 	rc.out.Line("[%s] "+format, append([]any{time.Now().Format("15:04:05")}, args...)...)
 }
 
-func watchStatePath() string {
-	dir, err := os.UserConfigDir()
-	if err != nil || dir == "" {
-		return filepath.Join(".", "skycli-watch-state.json")
+func (rc *runCtx) watchStatePath(frameID int64, userID string) (string, error) {
+	cfgPath := rc.g.configPath
+	if cfgPath == "" {
+		var err error
+		cfgPath, err = config.DefaultPath()
+		if err != nil {
+			return "", err
+		}
 	}
-	return filepath.Join(dir, "skycli", "watch-state.json")
+	key := sha256.Sum256([]byte(fmt.Sprintf("%s\x00%s\x00%d", rc.cfg.BaseURL, userID, frameID)))
+	return fmt.Sprintf("%s.watch-%x.json", cfgPath, key[:12]), nil
 }
 
 func loadWatchState(path string, state *watchState) error {
@@ -255,5 +296,17 @@ func saveWatchState(path string, state *watchState) error {
 		return err
 	}
 	data = append(data, '\n')
-	return os.WriteFile(path, data, 0o600)
+	f, err := os.CreateTemp(filepath.Dir(path), ".skycli-watch-*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(f.Name()) }()
+	defer func() { _ = f.Close() }()
+	if _, err := f.Write(data); err != nil {
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), path)
 }

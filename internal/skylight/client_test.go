@@ -19,7 +19,7 @@ func TestDoUsesAbsoluteURLWithoutPrependingBase(t *testing.T) {
 		if got := r.URL.Query().Get("x"); got != "1" {
 			t.Fatalf("query x: got %q", got)
 		}
-		fmt.Fprint(w, `{"ok":true}`)
+		_, _ = fmt.Fprint(w, `{"ok":true}`)
 	}))
 	defer srv.Close()
 
@@ -37,14 +37,14 @@ func TestDoSuppressesAuthForOffOriginURL(t *testing.T) {
 	var offOriginAuth string
 	off := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		offOriginAuth = r.Header.Get("Authorization")
-		fmt.Fprint(w, `{}`)
+		_, _ = fmt.Fprint(w, `{}`)
 	}))
 	defer off.Close()
 
 	var sameOriginAuth string
 	base := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sameOriginAuth = r.Header.Get("Authorization")
-		fmt.Fprint(w, `{}`)
+		_, _ = fmt.Fprint(w, `{}`)
 	}))
 	defer base.Close()
 
@@ -73,7 +73,7 @@ func TestCreateUpForGrabsChoreUsesCreateMultiple(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode body: %v", err)
 		}
-		fmt.Fprint(w, `{"data":[{"id":"99","attributes":{"summary":"Bonus","status":"pending","start":"2026-05-18","reward_points":10,"recurring":true,"up_for_grabs":true},"relationships":{"category":{"data":null}}}]}`)
+		_, _ = fmt.Fprint(w, `{"data":[{"id":"99","attributes":{"summary":"Bonus","status":"pending","start":"2026-05-18","reward_points":10,"recurring":true,"up_for_grabs":true},"relationships":{"category":{"data":null}}}]}`)
 	}))
 	defer srv.Close()
 
@@ -109,7 +109,7 @@ func TestUpdateChoreUsesBaseInstanceID(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode body: %v", err)
 		}
-		fmt.Fprint(w, `{"data":{"id":"99","attributes":{"summary":"TV Ticket","status":"pending","start":"2026-05-18","reward_points":1,"recurring":true,"up_for_grabs":false},"relationships":{"category":{"data":{"id":"20431525"}}}}}`)
+		_, _ = fmt.Fprint(w, `{"data":{"id":"99","attributes":{"summary":"TV Ticket","status":"pending","start":"2026-05-18","reward_points":1,"recurring":true,"up_for_grabs":false},"relationships":{"category":{"data":{"id":"20431525"}}}}}`)
 	}))
 	defer srv.Close()
 
@@ -142,7 +142,7 @@ func TestSetChoreCompletionSendsInstanceDate(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode body: %v", err)
 		}
-		fmt.Fprint(w, `{"data":{"id":"99-2026-05-18","attributes":{"summary":"Bonus","status":"complete","start":"2026-05-18","reward_points":10,"recurring":true,"up_for_grabs":false},"relationships":{"category":{"data":{"id":"20435739"}}}}}`)
+		_, _ = fmt.Fprint(w, `{"data":{"id":"99-2026-05-18","attributes":{"summary":"Bonus","status":"complete","start":"2026-05-18","reward_points":10,"recurring":true,"up_for_grabs":false},"relationships":{"category":{"data":{"id":"20435739"}}}}}`)
 	}))
 	defer srv.Close()
 
@@ -165,11 +165,11 @@ func TestRewardUpdateAndRedeemEndpoints(t *testing.T) {
 		switch {
 		case r.Method == http.MethodPatch && r.URL.Path == "/api/frames/123/rewards/55":
 			sawUpdate = true
-			fmt.Fprint(w, `{"data":{"id":"55","attributes":{"name":"TV Ticket","point_value":10,"respawn_on_redemption":true,"redeemed_at":null},"relationships":{"category":{"data":{"id":"20431525"}}}}}`)
+			_, _ = fmt.Fprint(w, `{"data":{"id":"55","attributes":{"name":"TV Ticket","point_value":10,"respawn_on_redemption":true,"redeemed_at":null},"relationships":{"category":{"data":{"id":"20431525"}}}}}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/frames/123/rewards/55/redeem":
 			sawRedeem = true
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprint(w, `{}`)
+			_, _ = fmt.Fprint(w, `{}`)
 		default:
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
@@ -197,7 +197,7 @@ func TestDoReadOnlyRefusesNonGET(t *testing.T) {
 	var hits int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits++
-		fmt.Fprint(w, `{}`)
+		_, _ = fmt.Fprint(w, `{}`)
 	}))
 	defer srv.Close()
 
