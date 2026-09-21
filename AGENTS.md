@@ -62,4 +62,4 @@ Work style: concise, direct, repo-first. Prefer short bullets over long prose.
 - Release workflow uses the pinned GoReleaser version from `.goreleaser-version` and publishes GitHub assets plus the `jwmoss/homebrew-tap` cask.
 - After release, verify GitHub release assets, tap cask, `brew install`, and `skycli version`.
 
-The currently published release still uses a formula. Cask verification applies after the next release publishes it.
+Version 0.2.0 replaces the Homebrew formula with a cask. Follow the README migration steps for an existing formula install.

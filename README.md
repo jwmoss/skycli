@@ -22,13 +22,13 @@ export/import, status, analytics, and watch.
 
 ```bash
 brew tap jwmoss/tap
-brew install skycli
+brew install --cask skycli
 ```
 
 Or:
 
 ```bash
-brew install jwmoss/tap/skycli
+brew install --cask jwmoss/tap/skycli
 ```
 
 ### Go
@@ -46,15 +46,15 @@ make build
 ./skycli version
 ```
 
-The current published release uses a Homebrew formula. The next release uses a cask.
-After that release is published, remove the formula and install the cask:
+Version 0.2.0 uses a Homebrew cask. To upgrade from the previous formula,
+remove the formula and install the cask:
 
 ```bash
 brew uninstall --formula skycli
 brew install --cask jwmoss/tap/skycli
 ```
 
-The cask is not published by this local change.
+The cask supplies macOS and Linux binaries. Windows users can use the release ZIP.
 
 ## Quick start
 

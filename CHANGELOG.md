@@ -4,6 +4,8 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+## v0.2.0 - 2026-09-20
+
 ### Fixed
 
 - Reject cross-origin API and OAuth redirects before credentials or bodies can leave the origin.
@@ -21,7 +23,7 @@ All notable changes to `skycli` will be documented in this file.
 ### Documentation
 
 - Document verified API capabilities, known gaps, and portable export limitations.
-- Document the next release's Homebrew formula-to-cask migration.
+- Document the Homebrew formula-to-cask migration in v0.2.0.
 
 ## v0.1.9 - 2026-08-19
 
