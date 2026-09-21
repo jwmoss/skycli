@@ -37,3 +37,9 @@ skycli chores bulk --file chores.json --sleep 5s --json
 
 Use `--readonly` for list/search/week/streak automation. Mutating subcommands
 call the live private API.
+
+## Local streak calculation
+
+`streak` measures days when an assignee completes all recorded chores.
+It is not Skylight's per-routine Habit Tracker score.
+Skipped chores do not count toward totals and do not break this local streak.

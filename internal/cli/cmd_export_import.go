@@ -104,7 +104,7 @@ func runExport(rc *runCtx, args []string) int {
 	resourcesRaw := fs.String("resources", "all", "comma-separated resources: chores,rewards,lists,recipes,sittings,calendar")
 	days := fs.Int("days", 90, "window in days before/after today for time-bounded resources")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {
@@ -124,7 +124,9 @@ func runExport(rc *runCtx, args []string) int {
 	}
 	data = append(data, '\n')
 	if *output == "" || *output == "-" {
-		fmt.Fprint(rc.stdout, string(data))
+		if _, err := rc.stdout.Write(data); err != nil {
+			return fail(rc, err)
+		}
 		return exitOK
 	}
 	if err := os.WriteFile(*output, data, 0o600); err != nil {
@@ -216,7 +218,7 @@ func runImport(rc *runCtx, args []string) int {
 	resourcesRaw := fs.String("resources", "all", "comma-separated resources to import")
 	dryRun := fs.Bool("dry-run", false, "show counts without creating resources")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*file, "file"); err != nil {
 		return usage(rc, err.Error())
@@ -233,17 +235,24 @@ func runImport(rc *runCtx, args []string) int {
 	if err != nil {
 		return usage(rc, err.Error())
 	}
-	if *dryRun {
-		_ = rc.out.JSON(importCounts(data, resources))
-		return exitOK
-	}
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {
 		return fail(rc, err)
 	}
+	if data.FrameID != 0 && data.FrameID != frameID {
+		return usage(rc, "cross-frame import requires category mapping and is not supported")
+	}
 	c, err := rc.client()
 	if err != nil {
 		return fail(rc, err)
+	}
+	recipeIDs, err := validateImportReferences(rc, c, frameID, data, resources)
+	if err != nil {
+		return fail(rc, err)
+	}
+	if *dryRun || rc.g.dryRun {
+		_ = rc.out.JSON(importCounts(data, resources))
+		return exitOK
 	}
 	result := map[string]any{"created": map[string]int{}, "failed": []map[string]string{}}
 	created := result["created"].(map[string]int)
@@ -292,10 +301,10 @@ func runImport(rc *runCtx, args []string) int {
 		importLists(rc, frameID, data.Lists, created, &failures)
 	}
 	if resources["recipes"] {
-		importRecipes(rc, frameID, data.Recipes, created, &failures)
+		importRecipes(rc, frameID, data.Recipes, recipeIDs, created, &failures)
 	}
 	if resources["sittings"] {
-		importSittings(rc, frameID, data.MealSittings, created, &failures)
+		importSittings(rc, frameID, data.MealSittings, recipeIDs, created, &failures)
 	}
 	if resources["calendar"] {
 		importCalendarEvents(rc, frameID, data.CalendarEvents, created, &failures)
@@ -306,6 +315,116 @@ func runImport(rc *runCtx, args []string) int {
 		return exitErr
 	}
 	return exitOK
+}
+
+// Validate references before the first write, including dry-run. Imported recipes
+// reserve an ID mapping; a failed create leaves the mapping empty, so its sittings
+// cannot silently attach to the source recipe.
+func validateImportReferences(rc *runCtx, c *skylight.Client, frameID int64, data portableExport, resources map[string]bool) (map[string]string, error) {
+	if err := validateImportCategories(rc, c, frameID, data, resources); err != nil {
+		return nil, err
+	}
+	recipeIDs := map[string]string{}
+	if resources["recipes"] {
+		for _, r := range data.Recipes {
+			if r.ID == "" {
+				continue
+			}
+			if _, exists := recipeIDs[r.ID]; exists {
+				return nil, fmt.Errorf("duplicate recipe ID %q", r.ID)
+			}
+			recipeIDs[r.ID] = ""
+		}
+	}
+	if resources["sittings"] {
+		for _, s := range data.MealSittings {
+			if s.RecipeID == "" {
+				continue
+			}
+			if _, exists := recipeIDs[s.RecipeID]; exists {
+				continue
+			}
+			raw, err := c.GetRecipe(rc.ctx, frameID, s.RecipeID)
+			if err != nil {
+				return nil, fmt.Errorf("validate recipe %s: %w", s.RecipeID, err)
+			}
+			var doc skylight.Document[skylight.Recipe]
+			if err := json.Unmarshal(raw, &doc); err != nil || doc.Data.ID != s.RecipeID {
+				return nil, fmt.Errorf("recipe reference %q does not exist on target frame", s.RecipeID)
+			}
+			recipeIDs[s.RecipeID] = s.RecipeID
+		}
+	}
+	return recipeIDs, nil
+}
+
+func validateImportCategories(rc *runCtx, c *skylight.Client, frameID int64, data portableExport, resources map[string]bool) error {
+	categories, mealCategories := map[string]bool{}, map[string]bool{}
+	if resources["chores"] {
+		for _, ch := range data.Chores {
+			if ch.CategoryID != 0 {
+				categories[formatID(ch.CategoryID)] = true
+			}
+		}
+	}
+	if resources["rewards"] {
+		for _, r := range data.Rewards {
+			if r.CategoryID != 0 {
+				categories[formatID(r.CategoryID)] = true
+			}
+			for _, id := range r.CategoryIDs {
+				categories[formatID(id)] = true
+			}
+		}
+	}
+	if resources["calendar"] {
+		for _, ev := range data.CalendarEvents {
+			categories[ev.CategoryID] = true
+		}
+	}
+	if resources["recipes"] {
+		for _, r := range data.Recipes {
+			mealCategories[r.MealCategoryID] = true
+		}
+	}
+	if resources["sittings"] {
+		for _, s := range data.MealSittings {
+			mealCategories[s.MealCategoryID] = true
+		}
+	}
+	delete(categories, "")
+	delete(mealCategories, "")
+	if len(categories) > 0 {
+		known, err := c.ListCategories(rc.ctx, frameID)
+		if err != nil {
+			return err
+		}
+		for _, category := range known {
+			delete(categories, category.ID)
+		}
+		for id := range categories {
+			return fmt.Errorf("category reference %q does not exist on target frame", id)
+		}
+	}
+	if len(mealCategories) > 0 {
+		raw, err := c.ListMealCategories(rc.ctx, frameID)
+		if err != nil {
+			return err
+		}
+		var known skylight.Collection[struct {
+			ID string `json:"id"`
+		}]
+		if err := json.Unmarshal(raw, &known); err != nil {
+			return err
+		}
+		for _, category := range known.Data {
+			delete(mealCategories, category.ID)
+		}
+		for id := range mealCategories {
+			return fmt.Errorf("meal category reference %q does not exist on target frame", id)
+		}
+	}
+	return nil
 }
 
 func parseResourceSelection(raw string, all []string) (map[string]bool, error) {
@@ -501,7 +620,7 @@ func importLists(rc *runCtx, frameID int64, lists []portableList, created map[st
 	}
 }
 
-func importRecipes(rc *runCtx, frameID int64, recipes []portableRecipe, created map[string]int, failures *[]map[string]string) {
+func importRecipes(rc *runCtx, frameID int64, recipes []portableRecipe, recipeIDs map[string]string, created map[string]int, failures *[]map[string]string) {
 	if len(recipes) == 0 {
 		return
 	}
@@ -514,15 +633,26 @@ func importRecipes(rc *runCtx, frameID int64, recipes []portableRecipe, created 
 	}
 	for _, r := range recipes {
 		payload := map[string]any{"summary": r.Summary, "description": r.Description, "ingredients": r.Ingredients, "url": r.URL, "meal_category_id": r.MealCategoryID}
-		if _, err := c.CreateRecipe(rc.ctx, frameID, payload); err != nil {
+		raw, err := c.CreateRecipe(rc.ctx, frameID, payload)
+		var doc skylight.Document[skylight.Recipe]
+		if err == nil {
+			err = json.Unmarshal(raw, &doc)
+		}
+		if err == nil && doc.Data.ID == "" {
+			err = fmt.Errorf("created recipe response has no ID")
+		}
+		if err != nil {
 			*failures = append(*failures, map[string]string{"resource": "recipes", "name": r.Summary, "error": err.Error()})
 			continue
 		}
 		created["recipes"]++
+		if r.ID != "" {
+			recipeIDs[r.ID] = doc.Data.ID
+		}
 	}
 }
 
-func importSittings(rc *runCtx, frameID int64, sittings []portableMealSitting, created map[string]int, failures *[]map[string]string) {
+func importSittings(rc *runCtx, frameID int64, sittings []portableMealSitting, recipeIDs map[string]string, created map[string]int, failures *[]map[string]string) {
 	if len(sittings) == 0 {
 		return
 	}
@@ -534,7 +664,12 @@ func importSittings(rc *runCtx, frameID int64, sittings []portableMealSitting, c
 		return
 	}
 	for _, s := range sittings {
-		payload := map[string]any{"summary": s.Summary, "date": s.Date, "meal_recipe_id": s.RecipeID, "meal_category_id": s.MealCategoryID}
+		recipeID := recipeIDs[s.RecipeID]
+		if s.RecipeID != "" && recipeID == "" {
+			*failures = append(*failures, map[string]string{"resource": "sittings", "name": s.Summary, "error": "referenced recipe was not created"})
+			continue
+		}
+		payload := map[string]any{"summary": s.Summary, "date": s.Date, "meal_recipe_id": recipeID, "meal_category_id": s.MealCategoryID}
 		if _, err := c.CreateMealSitting(rc.ctx, frameID, payload); err != nil {
 			*failures = append(*failures, map[string]string{"resource": "sittings", "name": s.Summary, "error": err.Error()})
 			continue

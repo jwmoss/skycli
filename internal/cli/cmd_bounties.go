@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/jwmoss/skycli/internal/skylight"
 )
@@ -50,7 +49,7 @@ func bountiesCreate(rc *runCtx, args []string) int {
 	recurring := fs.Bool("recurring", false, "make chore recurring")
 	categoryIDs := fs.String("category-ids", "", "comma-separated reward category IDs")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if strings.TrimSpace(*title) == "" || *points <= 0 || strings.TrimSpace(*rewardTitle) == "" {
 		return usage(rc, "--title, --points (>0), and --reward-title are required")
@@ -109,52 +108,14 @@ func bountiesCreate(rc *runCtx, args []string) int {
 func bountiesList(rc *runCtx, args []string) int {
 	fs := flag.NewFlagSet("bounties list", flag.ContinueOnError)
 	fs.SetOutput(rc.stderr)
-	frameStr := fs.String("frame", "", "frame ID")
+	fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
-	frameID, err := resolveFrame(rc, *frameStr)
-	if err != nil {
+	_, _ = fmt.Fprintln(rc.stderr, "skycli has no verified bounty links. Use chores list and rewards list; keep explicit IDs from bounties create.")
+	if err := rc.out.JSON([]bountyResult{}); err != nil {
 		return fail(rc, err)
 	}
-	c, err := rc.client()
-	if err != nil {
-		return fail(rc, err)
-	}
-	now := time.Now()
-	chores, err := c.ListChores(rc.ctx, frameID, skylight.ChoreFilter{
-		After:       now.AddDate(0, 0, -1).Format("2006-01-02"),
-		Before:      now.AddDate(0, 1, 0).Format("2006-01-02"),
-		IncludeLate: true,
-	})
-	if err != nil {
-		return fail(rc, err)
-	}
-	rewards, err := c.ListRewards(rc.ctx, frameID)
-	if err != nil {
-		return fail(rc, err)
-	}
-	rewardsByPoints := map[int][]skylight.Reward{}
-	for _, r := range rewards {
-		if r.Attributes.RedeemedAt == nil {
-			rewardsByPoints[r.Attributes.PointValue] = append(rewardsByPoints[r.Attributes.PointValue], r)
-		}
-	}
-	out := []bountyResult{}
-	for _, ch := range chores {
-		if ch.Attributes.Status != "pending" || ch.Attributes.RewardPoints == nil || *ch.Attributes.RewardPoints <= 0 {
-			continue
-		}
-		rs := rewardsByPoints[*ch.Attributes.RewardPoints]
-		if len(rs) == 0 {
-			continue
-		}
-		reward := rs[0]
-		rewardsByPoints[*ch.Attributes.RewardPoints] = rs[1:]
-		chCopy := ch
-		out = append(out, bountyResult{Chore: &chCopy, Reward: &reward})
-	}
-	_ = rc.out.JSON(out)
 	return exitOK
 }
 
@@ -169,7 +130,7 @@ func bountiesUpdate(rc *runCtx, args []string) int {
 	points := fs.Int("points", -1, "new point value")
 	emoji := fs.String("emoji-icon", "", "new reward emoji icon")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*choreID, "chore-id"); err != nil {
 		return usage(rc, err.Error())
@@ -225,7 +186,7 @@ func bountiesDelete(rc *runCtx, args []string) int {
 	choreID := fs.String("chore-id", "", "chore ID")
 	rewardID := fs.String("reward-id", "", "reward ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*choreID, "chore-id"); err != nil {
 		return usage(rc, err.Error())
@@ -267,7 +228,7 @@ func failBountyPartial(rc *runCtx, operation string, applied map[string]any, err
 		"applied":   applied,
 	})
 	if !rc.g.asJSON {
-		fmt.Fprintln(rc.stderr, "error:", err.Error())
+		_, _ = fmt.Fprintln(rc.stderr, "error:", err.Error())
 	}
 	return exitErr
 }

@@ -23,11 +23,11 @@ func TestDoctorUsesEnvAccessToken(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/user":
 			authHeader = r.Header.Get("Authorization")
-			fmt.Fprint(w, `{"data":{"id":"user-1","attributes":{}}}`)
+			_, _ = fmt.Fprint(w, `{"data":{"id":"user-1","attributes":{}}}`)
 		case "/api/frames/123":
-			fmt.Fprint(w, `{"data":{"id":"123","attributes":{"name":"Kitchen"}}}`)
+			_, _ = fmt.Fprint(w, `{"data":{"id":"123","attributes":{"name":"Kitchen"}}}`)
 		case "/api/frames/123/categories":
-			fmt.Fprint(w, `{"data":[]}`)
+			_, _ = fmt.Fprint(w, `{"data":[]}`)
 		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -52,7 +52,7 @@ func TestDoctorJSONReportsFailedCheckAsNotOK(t *testing.T) {
 		if r.URL.Path != "/api/user" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
-		fmt.Fprint(w, `{"data":{"id":"user-1","attributes":{}}}`)
+		_, _ = fmt.Fprint(w, `{"data":{"id":"user-1","attributes":{}}}`)
 	}))
 	defer srv.Close()
 
@@ -103,17 +103,17 @@ func TestExpiredConfigTokenAutoRefreshes(t *testing.T) {
 			if got := r.FormValue("skylight_api_client_device_fingerprint"); got != "fp-1" {
 				t.Fatalf("fingerprint: got %q", got)
 			}
-			fmt.Fprint(w, `{"access_token":"new-access","refresh_token":"new-refresh","expires_in":3600}`)
+			_, _ = fmt.Fprint(w, `{"access_token":"new-access","refresh_token":"new-refresh","expires_in":3600}`)
 		case "/api/user":
 			sawUser = true
 			if got := r.Header.Get("Authorization"); got != "Bearer new-access" {
 				t.Fatalf("Authorization: got %q", got)
 			}
-			fmt.Fprint(w, `{"data":{"id":"user-1","attributes":{}}}`)
+			_, _ = fmt.Fprint(w, `{"data":{"id":"user-1","attributes":{}}}`)
 		case "/api/frames/123":
-			fmt.Fprint(w, `{"data":{"id":"123","attributes":{"name":"Kitchen"}}}`)
+			_, _ = fmt.Fprint(w, `{"data":{"id":"123","attributes":{"name":"Kitchen"}}}`)
 		case "/api/frames/123/categories":
-			fmt.Fprint(w, `{"data":[]}`)
+			_, _ = fmt.Fprint(w, `{"data":[]}`)
 		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -162,7 +162,7 @@ func TestAuthRefreshCommandUpdatesConfig(t *testing.T) {
 		if got := r.FormValue("skylight_api_client_device_fingerprint"); got != "cfg-fp" {
 			t.Fatalf("fingerprint: got %q", got)
 		}
-		fmt.Fprint(w, `{"access_token":"cmd-access","refresh_token":"cmd-refresh","expires_in":7200}`)
+		_, _ = fmt.Fprint(w, `{"access_token":"cmd-access","refresh_token":"cmd-refresh","expires_in":7200}`)
 	}))
 	defer srv.Close()
 
@@ -188,7 +188,7 @@ func TestAuthLoginCommandSavesOAuthCredentials(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/auth/session/new":
-			fmt.Fprint(w, `<input name="authenticity_token" value="csrf-login" />`)
+			_, _ = fmt.Fprint(w, `<input name="authenticity_token" value="csrf-login" />`)
 		case "/auth/session":
 			sawSession = true
 			if err := r.ParseForm(); err != nil {
@@ -221,7 +221,7 @@ func TestAuthLoginCommandSavesOAuthCredentials(t *testing.T) {
 			if got := r.FormValue("code"); got != "code-login" {
 				t.Fatalf("code: got %q", got)
 			}
-			fmt.Fprint(w, `{"access_token":"login-access","refresh_token":"login-refresh","expires_in":3600}`)
+			_, _ = fmt.Fprint(w, `{"access_token":"login-access","refresh_token":"login-refresh","expires_in":3600}`)
 		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -254,7 +254,7 @@ func TestChoresListAfterDoesNotInjectDefaultBefore(t *testing.T) {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 		query = r.URL.RawQuery
-		fmt.Fprint(w, `{"data":[]}`)
+		_, _ = fmt.Fprint(w, `{"data":[]}`)
 	}))
 	defer srv.Close()
 
@@ -289,7 +289,7 @@ func TestChoresListStartEndDateAliases(t *testing.T) {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 		query = r.URL.RawQuery
-		fmt.Fprint(w, `{"data":[]}`)
+		_, _ = fmt.Fprint(w, `{"data":[]}`)
 	}))
 	defer srv.Close()
 
@@ -324,7 +324,7 @@ func TestCalendarListUsesCurrentDateRangeQueryKeys(t *testing.T) {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 		query = r.URL.RawQuery
-		fmt.Fprint(w, `{"data":[]}`)
+		_, _ = fmt.Fprint(w, `{"data":[]}`)
 	}))
 	defer srv.Close()
 
@@ -359,7 +359,7 @@ func TestFramesDefaultListsFrameIDs(t *testing.T) {
 	var requestPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestPath = r.URL.Path
-		fmt.Fprint(w, `{"data":[{"id":"123","attributes":{"name":"Kitchen","household_name":"Moss","timezone":"America/New_York","mine":true,"plus":true,"activated":true}}]}`)
+		_, _ = fmt.Fprint(w, `{"data":[{"id":"123","attributes":{"name":"Kitchen","household_name":"Moss","timezone":"America/New_York","mine":true,"plus":true,"activated":true}}]}`)
 	}))
 	defer srv.Close()
 
@@ -409,7 +409,7 @@ func TestRawUsesAbsoluteURL(t *testing.T) {
 			t.Fatalf("query x: got %q", got)
 		}
 		sawRaw = true
-		fmt.Fprint(w, `{"ok":true}`)
+		_, _ = fmt.Fprint(w, `{"ok":true}`)
 	}))
 	defer srv.Close()
 
@@ -460,7 +460,7 @@ func TestChoresCreateUpForGrabsCommand(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode body: %v", err)
 		}
-		fmt.Fprint(w, `{"data":[{"id":"99","attributes":{"summary":"Bonus","status":"pending","start":"2026-05-18","reward_points":10,"recurring":true,"up_for_grabs":true},"relationships":{"category":{"data":null}}}]}`)
+		_, _ = fmt.Fprint(w, `{"data":[{"id":"99","attributes":{"summary":"Bonus","status":"pending","start":"2026-05-18","reward_points":10,"recurring":true,"up_for_grabs":true},"relationships":{"category":{"data":null}}}]}`)
 	}))
 	defer srv.Close()
 
@@ -492,7 +492,7 @@ func TestChoresUpdateCommand(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode body: %v", err)
 		}
-		fmt.Fprint(w, `{"data":{"id":"99","attributes":{"summary":"Mary TV Ticket","status":"pending","start":"2026-05-18","reward_points":1,"recurring":true,"up_for_grabs":false},"relationships":{"category":{"data":{"id":"20431525"}}}}}`)
+		_, _ = fmt.Fprint(w, `{"data":{"id":"99","attributes":{"summary":"Mary TV Ticket","status":"pending","start":"2026-05-18","reward_points":1,"recurring":true,"up_for_grabs":false},"relationships":{"category":{"data":{"id":"20431525"}}}}}`)
 	}))
 	defer srv.Close()
 
@@ -522,10 +522,10 @@ func TestRewardsUpdateAndRedeemCommands(t *testing.T) {
 		switch {
 		case r.Method == http.MethodPatch && r.URL.Path == "/api/frames/123/rewards/55":
 			sawUpdate = true
-			fmt.Fprint(w, `{"data":{"id":"55","attributes":{"name":"Levi TV Ticket","point_value":10,"respawn_on_redemption":true,"redeemed_at":null},"relationships":{"category":{"data":{"id":"20435739"}}}}}`)
+			_, _ = fmt.Fprint(w, `{"data":{"id":"55","attributes":{"name":"Levi TV Ticket","point_value":10,"respawn_on_redemption":true,"redeemed_at":null},"relationships":{"category":{"data":{"id":"20435739"}}}}}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/frames/123/rewards/55/redeem":
 			sawRedeem = true
-			fmt.Fprint(w, `{}`)
+			_, _ = fmt.Fprint(w, `{}`)
 		default:
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
@@ -564,7 +564,7 @@ func TestCalendarCountdownDateAlias(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode body: %v", err)
 		}
-		fmt.Fprint(w, `{"data":{"id":"cal-1","attributes":{"summary":"Beach trip","starts_at":"2026-07-01","all_day":true}}}`)
+		_, _ = fmt.Fprint(w, `{"data":{"id":"cal-1","attributes":{"summary":"Beach trip","starts_at":"2026-07-01","all_day":true}}}`)
 	}))
 	defer srv.Close()
 
@@ -596,7 +596,7 @@ func TestGroceryAddMultipleItems(t *testing.T) {
 			t.Fatalf("decode body: %v", err)
 		}
 		labels = append(labels, fmt.Sprint(payload["label"]))
-		fmt.Fprint(w, `{"data":{"id":"item","attributes":{"label":"ok","status":"pending"}}}`)
+		_, _ = fmt.Fprint(w, `{"data":{"id":"item","attributes":{"label":"ok","status":"pending"}}}`)
 	}))
 	defer srv.Close()
 
@@ -621,7 +621,7 @@ func TestListsTaskBoxItemsUsesTaskBoxEndpoint(t *testing.T) {
 	var requestPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestPath = r.URL.Path
-		fmt.Fprint(w, `{"data":[{"id":"1","type":"task_box_item","attributes":{"summary":"Laundry"}}]}`)
+		_, _ = fmt.Fprint(w, `{"data":[{"id":"1","type":"task_box_item","attributes":{"summary":"Laundry"}}]}`)
 	}))
 	defer srv.Close()
 
@@ -650,7 +650,7 @@ func TestListsTaskBoxItemCreateUsesTaskBoxEndpoint(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode body: %v", err)
 		}
-		fmt.Fprint(w, `{"data":{"id":"1","type":"task_box_item","attributes":{"summary":"Laundry"}}}`)
+		_, _ = fmt.Fprint(w, `{"data":{"id":"1","type":"task_box_item","attributes":{"summary":"Laundry"}}}`)
 	}))
 	defer srv.Close()
 
@@ -822,7 +822,7 @@ func TestReadonlyBlocksRawSingleDashMethodEquals(t *testing.T) {
 	var hits int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits++
-		fmt.Fprint(w, `{}`)
+		_, _ = fmt.Fprint(w, `{}`)
 	}))
 	defer srv.Close()
 
@@ -845,7 +845,7 @@ func TestReadonlyBlocksRawSingleDashMethodEquals(t *testing.T) {
 func TestRefreshSkipsWhenAnotherProcessAlreadyRefreshed(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("unexpected request to %s — refresh should have been skipped", r.URL.Path)
-		fmt.Fprint(w, `{}`)
+		_, _ = fmt.Fprint(w, `{}`)
 	}))
 	defer srv.Close()
 
@@ -924,7 +924,7 @@ func TestClientCarriesReadonlyBackstop(t *testing.T) {
 	var hits int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits++
-		fmt.Fprint(w, `{}`)
+		_, _ = fmt.Fprint(w, `{}`)
 	}))
 	defer srv.Close()
 

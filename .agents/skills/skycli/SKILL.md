@@ -120,12 +120,16 @@ skycli grocery add --list-id <list-id> --title "Milk"
 
 After mutation, verify with a typed list command or a GET through `raw`.
 
-## Backup / Restore
+## Portable Templates
 
 ```bash
 skycli export --output-file skylight-export.json --resources all --days 90
 skycli import --file skylight-export.json --dry-run
 ```
+
+Import validates references with GET requests, maps recipe IDs, and rejects cross-frame files.
+Import appends resources; repeated imports can create duplicates.
+Export omits account settings, media, routine state, and several event fields. It is not a full backup.
 
 Do not commit real exports unless the user explicitly says they are sanitized
 fixtures.

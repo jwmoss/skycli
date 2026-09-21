@@ -35,7 +35,7 @@ func routinesList(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
 		return c.ListRoutines(rc.ctx, frameID)
@@ -64,7 +64,7 @@ func routinesCreate(rc *runCtx, args []string) int {
 	steps := fs.String("steps", "", "comma-separated step titles")
 	body, bodyFile := bodyFlags(fs, rc)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	payload, err := routinePayload(rc, fs, *body, *bodyFile, *title, *assigneeID, *steps)
 	if err != nil {
@@ -88,7 +88,7 @@ func routinesUpdate(rc *runCtx, args []string) int {
 	steps := fs.String("steps", "", "comma-separated step titles")
 	body, bodyFile := bodyFlags(fs, rc)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*routineID, "routine-id"); err != nil {
 		return usage(rc, err.Error())
@@ -108,7 +108,7 @@ func routinesDelete(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	routineID := fs.String("routine-id", "", "routine ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*routineID, "routine-id"); err != nil {
 		return usage(rc, err.Error())
@@ -124,7 +124,7 @@ func routinesReorder(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	ids := fs.String("routine-ids", "", "comma-separated routine IDs in desired order")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*ids, "routine-ids"); err != nil {
 		return usage(rc, err.Error())

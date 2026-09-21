@@ -51,13 +51,13 @@ func configPath(rc *runCtx) string {
 }
 
 func configShow(rc *runCtx, args []string) int {
-	rc.loadConfiguredSecrets()
 	fs := flag.NewFlagSet("config show", flag.ContinueOnError)
 	fs.SetOutput(rc.stderr)
 	showSecrets := fs.Bool("show-secrets", false, "show token values without masking")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
+	rc.loadConfiguredSecrets()
 	info := map[string]any{
 		"path":                 configPath(rc),
 		"base_url":             rc.cfg.BaseURL,
@@ -91,7 +91,7 @@ func configGet(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	showSecrets := fs.Bool("show-secrets", false, "show token values without masking")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if fs.NArg() != 1 {
 		return usage(rc, "skycli config get [--show-secrets] <key>")
@@ -202,7 +202,7 @@ func configEdit(rc *runCtx, args []string) int {
 	fs := flag.NewFlagSet("config edit", flag.ContinueOnError)
 	fs.SetOutput(rc.stderr)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	path := configPath(rc)
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {

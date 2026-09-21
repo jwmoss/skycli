@@ -43,7 +43,7 @@ func rewardsList(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {
@@ -93,7 +93,7 @@ func rewardsCreate(rc *runCtx, args []string) int {
 	emoji := fs.String("emoji", "", "optional emoji_icon")
 	respawn := fs.Bool("respawn", false, "auto-recreate after redemption")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if strings.TrimSpace(*name) == "" || *points <= 0 || strings.TrimSpace(*categories) == "" {
 		return usage(rc, "--name, --points (>0), --categories are required")
@@ -147,7 +147,7 @@ func rewardsUpdate(rc *runCtx, args []string) int {
 	respawn := fs.Bool("respawn", false, "set respawn_on_redemption=true")
 	noRespawn := fs.Bool("no-respawn", false, "set respawn_on_redemption=false")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if strings.TrimSpace(*idStr) == "" {
 		return usage(rc, "--id is required")
@@ -215,7 +215,7 @@ func rewardsDelete(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	idStr := fs.String("id", "", "reward ID (required)")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {
@@ -250,7 +250,7 @@ func rewardsRedeem(rc *runCtx, args []string, redeem bool) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	idStr := fs.String("id", "", "reward ID (required)")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if strings.TrimSpace(*idStr) == "" {
 		return usage(rc, "--id is required")
@@ -298,7 +298,7 @@ func rewardsBulk(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	file := fs.String("file", "-", "JSON array of reward specs; - for stdin")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {
@@ -312,7 +312,7 @@ func rewardsBulk(rc *runCtx, args []string) int {
 		if err != nil {
 			return fail(rc, err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		rdr = f
 	}
 	var items []bulkReward
@@ -343,7 +343,7 @@ func rewardsBulk(rc *runCtx, args []string) int {
 			results = append(results, map[string]any{"index": i, "ok": false, "name": it.Name, "error": err.Error()})
 			failures++
 			if !rc.g.asJSON {
-				fmt.Fprintf(rc.stderr, "[%d/%d] FAIL %s: %v\n", i+1, len(items), it.Name, err)
+				_, _ = fmt.Fprintf(rc.stderr, "[%d/%d] FAIL %s: %v\n", i+1, len(items), it.Name, err)
 			}
 			continue
 		}
@@ -353,13 +353,13 @@ func rewardsBulk(rc *runCtx, args []string) int {
 		}
 		results = append(results, map[string]any{"index": i, "ok": true, "name": it.Name, "ids": ids})
 		if !rc.g.asJSON {
-			fmt.Fprintf(rc.stderr, "[%d/%d] OK   %s -> ids=%s\n", i+1, len(items), it.Name, strings.Join(ids, ","))
+			_, _ = fmt.Fprintf(rc.stderr, "[%d/%d] OK   %s -> ids=%s\n", i+1, len(items), it.Name, strings.Join(ids, ","))
 		}
 	}
 	if rc.g.asJSON {
 		_ = rc.out.JSON(map[string]any{"total": len(items), "failures": failures, "results": results})
 	} else {
-		fmt.Fprintf(rc.stderr, "done: %d ok, %d failed\n", len(items)-failures, failures)
+		_, _ = fmt.Fprintf(rc.stderr, "done: %d ok, %d failed\n", len(items)-failures, failures)
 	}
 	if failures > 0 {
 		return exitErr
@@ -372,7 +372,7 @@ func rewardPointsCmd(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {

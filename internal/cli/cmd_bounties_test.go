@@ -77,7 +77,7 @@ func TestBountiesUpdateReportsPartialWhenRewardUpdateFails(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPut && r.URL.Path == "/api/frames/123/chores/5":
-			fmt.Fprint(w, `{"data":{"id":"5","attributes":{"summary":"Garage","reward_points":10}}}`)
+			_, _ = fmt.Fprint(w, `{"data":{"id":"5","attributes":{"summary":"Garage","reward_points":10}}}`)
 		case r.Method == http.MethodPatch && r.URL.Path == "/api/frames/123/rewards/9":
 			http.Error(w, `{"message":"reward failed"}`, http.StatusInternalServerError)
 		default:

@@ -1,6 +1,6 @@
 # export
 
-Exports frame data to portable JSON.
+Export selected resource definitions to portable JSON. This is not a complete account backup.
 
 ## Examples
 
@@ -16,3 +16,11 @@ When `--output-file` is set, the portable export is written to that file and JSO
 ## Safety
 
 Read-only against the Skylight account. It may write a local output file.
+
+## Limits
+
+`all` includes chores, rewards, lists and their items, recipes, meal sittings, and calendar events.
+The date window limits chores, sittings, and events.
+Export omits profiles, routines, media, device settings, subscriptions, and Sidekick history.
+It also omits chore completion state, reward redemption state, and calendar recurrence/source fields.
+Use the file as a template within the same frame. Import creates new resources.

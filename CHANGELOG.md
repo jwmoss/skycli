@@ -4,6 +4,25 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- Reject cross-origin API and OAuth redirects before credentials or bodies can leave the origin.
+- Preserve JSON integer precision and reject ignored trailing raw-command arguments.
+- Validate import references before writes and map new recipe IDs into meal sittings.
+- Reject cross-frame imports until category mapping exists.
+- Render calendar weeks in the frame timezone and preserve all-day dates.
+- Report watch poll/state failures, refresh credentials per poll, and isolate state by account/frame/config.
+- Apply photo-transfer deadlines, stream uploads, and preserve existing downloads after transfer failure.
+- Return success for help and allow readonly default reads and photo downloads.
+- Stop inferred bounty links based only on matching point values.
+- Preserve local chore streaks across skipped tasks.
+- Fail optional smoke checks for unexpected HTTP, transport, and JSON errors.
+
+### Documentation
+
+- Document verified API capabilities, known gaps, and portable export limitations.
+- Document the next release's Homebrew formula-to-cask migration.
+
 ## v0.1.9 - 2026-08-19
 
 ### Added

@@ -55,7 +55,7 @@ func runStatus(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {
@@ -132,7 +132,7 @@ func runAnalytics(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	days := fs.Int("days", 30, "number of days to include")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if *days <= 0 {
 		return usage(rc, "--days must be greater than 0")
@@ -297,7 +297,7 @@ func runHome(rc *runCtx, args []string) int {
 	noLists := fs.Bool("no-lists", false, "exclude lists")
 	date := fs.String("date", "", "week containing this date, YYYY-MM-DD")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {
@@ -307,7 +307,11 @@ func runHome(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
-	monday, err := weekStart(*date)
+	loc, err := rc.frameLocation(frameID)
+	if err != nil {
+		return fail(rc, err)
+	}
+	monday, err := weekStartIn(*date, loc)
 	if err != nil {
 		return fail(rc, err)
 	}
@@ -318,7 +322,7 @@ func runHome(rc *runCtx, args []string) int {
 	}
 	var chores []skylight.Chore
 	if !*noTasks {
-		todayDate := today()
+		todayDate := time.Now().In(loc).Format(dateLayout)
 		chores, err = c.ListChores(rc.ctx, frameID, skylight.ChoreFilter{
 			Date:              todayDate,
 			After:             todayDate,

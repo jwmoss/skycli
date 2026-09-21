@@ -68,7 +68,7 @@ func (rc *runCtx) loadConfiguredSecrets() {
 	}
 	if (rc.cfg.AccessToken != "" || rc.cfg.RefreshToken != "") && secrets.AccessToken == "" && secrets.RefreshToken == "" {
 		if err := rc.saveConfiguredSecrets(); err != nil {
-			fmt.Fprintf(rc.stderr, "warning: migrate secrets to %s: %v\n", backend, err)
+			_, _ = fmt.Fprintf(rc.stderr, "warning: migrate secrets to %s: %v\n", backend, err)
 			return
 		}
 		rc.cfg.AccessToken = ""

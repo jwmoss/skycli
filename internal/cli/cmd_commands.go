@@ -16,6 +16,7 @@ type catalogCommandDoc struct {
 	Name        string          `json:"name"`
 	Aliases     []string        `json:"aliases,omitempty"`
 	Summary     string          `json:"summary"`
+	Default     string          `json:"default_subcommand,omitempty"`
 	Docs        string          `json:"docs"`
 	Subcommands []subcommandDoc `json:"subcommands,omitempty"`
 	ReadOnly    bool            `json:"read_only"`
@@ -126,7 +127,8 @@ func buildCommandCatalog() commandCatalogDoc {
 				},
 			},
 			{
-				Name: "frames",
+				Name:    "frames",
+				Default: "list",
 				Aliases: []string{
 					"frame",
 				},
@@ -164,6 +166,7 @@ func buildCommandCatalog() commandCatalogDoc {
 			},
 			{
 				Name:    "chores",
+				Default: "list",
 				Aliases: []string{"chore"},
 				Summary: "List and manage chores.",
 				Docs:    "docs/commands/chores.md",
@@ -189,6 +192,7 @@ func buildCommandCatalog() commandCatalogDoc {
 			},
 			{
 				Name:    "rewards",
+				Default: "list",
 				Aliases: []string{"reward"},
 				Summary: "List and manage rewards and point balances.",
 				Docs:    "docs/commands/rewards.md",
@@ -210,6 +214,7 @@ func buildCommandCatalog() commandCatalogDoc {
 			},
 			{
 				Name:    "calendar",
+				Default: "list",
 				Summary: "List and manage calendar events and sources.",
 				Docs:    "docs/commands/calendar.md",
 				Mutates: true,
@@ -232,6 +237,7 @@ func buildCommandCatalog() commandCatalogDoc {
 			},
 			{
 				Name:    "lists",
+				Default: "list",
 				Aliases: []string{"list"},
 				Summary: "List and manage Skylight lists and task-box items.",
 				Docs:    "docs/commands/lists.md",
@@ -258,6 +264,7 @@ func buildCommandCatalog() commandCatalogDoc {
 			},
 			{
 				Name:    "grocery",
+				Default: "list",
 				Summary: "Convenience commands for grocery lists.",
 				Docs:    "docs/commands/grocery.md",
 				Mutates: true,
@@ -275,6 +282,7 @@ func buildCommandCatalog() commandCatalogDoc {
 			},
 			{
 				Name:    "meals",
+				Default: "recipes",
 				Aliases: []string{"meal"},
 				Summary: "Read and manage meal categories, recipes, sittings, and grocery sync.",
 				Docs:    "docs/commands/meals.md",
@@ -295,6 +303,7 @@ func buildCommandCatalog() commandCatalogDoc {
 			},
 			{
 				Name:    "photos",
+				Default: "list",
 				Aliases: []string{"photo"},
 				Summary: "List, upload, download, and delete photos.",
 				Docs:    "docs/commands/photos.md",
@@ -312,6 +321,7 @@ func buildCommandCatalog() commandCatalogDoc {
 			},
 			{
 				Name:     "albums",
+				Default:  "list",
 				Aliases:  []string{"album"},
 				Summary:  "Read photo albums and their messages.",
 				Docs:     "docs/commands/albums.md",
@@ -328,6 +338,7 @@ func buildCommandCatalog() commandCatalogDoc {
 			},
 			{
 				Name:    "routines",
+				Default: "list",
 				Aliases: []string{"routine"},
 				Summary: "List and manage routines.",
 				Docs:    "docs/commands/routines.md",
@@ -343,6 +354,7 @@ func buildCommandCatalog() commandCatalogDoc {
 			},
 			{
 				Name:     "sidekick",
+				Default:  "status",
 				Summary:  "Inspect Plus access and Sidekick auto-creation history.",
 				Docs:     "docs/commands/sidekick.md",
 				ReadOnly: true,
@@ -357,12 +369,13 @@ func buildCommandCatalog() commandCatalogDoc {
 			},
 			{
 				Name:    "bounties",
+				Default: "list",
 				Aliases: []string{"bounty"},
 				Summary: "Pair chores and rewards into bounty workflows.",
 				Docs:    "docs/commands/bounties.md",
 				Mutates: true,
 				Subcommands: []subcommandDoc{
-					{Name: "list", Summary: "List inferred bounty pairs."},
+					{Name: "list", Summary: "Return no inferred pairs; retain explicit IDs from create."},
 					{Name: "create", Summary: "Create a chore and paired reward.", Mutates: true},
 					{Name: "update", Summary: "Update the chore and reward pair.", Mutates: true},
 					{Name: "delete", Summary: "Delete the chore and reward pair.", Mutates: true},
@@ -427,6 +440,7 @@ func buildCommandCatalog() commandCatalogDoc {
 			},
 			{
 				Name:    "config",
+				Default: "show",
 				Summary: "Show or update skycli configuration.",
 				Docs:    "docs/commands/config.md",
 				Mutates: true,
@@ -446,7 +460,7 @@ func buildCommandCatalog() commandCatalogDoc {
 				Mutates: true,
 				Examples: []string{
 					"skycli raw /api/frames/5312425 --json --readonly",
-					"skycli raw --method POST /api/frames/5312425/lists --body '{\"label\":\"Errands\"}' --json",
+					"skycli raw --method POST --body '{\"label\":\"Errands\"}' /api/frames/5312425/lists --json",
 				},
 			},
 			{

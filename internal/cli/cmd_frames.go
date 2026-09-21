@@ -55,7 +55,7 @@ func framesNotifications(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	kind := fs.String("type", "", "notification type: event or task")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if *kind != "event" && *kind != "task" {
 		return usage(rc, "--type must be event or task")
@@ -75,7 +75,7 @@ func framesMonthReviews(rc *runCtx, args []string) int {
 	fs := flag.NewFlagSet("frames month-reviews", flag.ContinueOnError)
 	fs.SetOutput(rc.stderr)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	return runResourceJSON(rc, func(c *skylight.Client) (any, error) {
 		return c.ListMonthReviews(rc.ctx)
@@ -86,7 +86,7 @@ func framesReminderProfile(rc *runCtx, args []string) int {
 	fs := flag.NewFlagSet("frames reminder-profile", flag.ContinueOnError)
 	fs.SetOutput(rc.stderr)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	return runResourceJSON(rc, func(c *skylight.Client) (any, error) {
 		return c.GetReminderProfile(rc.ctx)
@@ -100,7 +100,7 @@ func framesNudges(rc *runCtx, args []string) int {
 	after := fs.String("after", "", "start time in RFC3339 format")
 	before := fs.String("before", "", "end time in RFC3339 format")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := validateNudgeRange(*after, *before); err != nil {
 		return usage(rc, err.Error())
@@ -140,7 +140,7 @@ func framesDevice(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	deviceID := fs.String("device-id", "", "device ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*deviceID, "device-id"); err != nil {
 		return usage(rc, err.Error())
@@ -155,7 +155,7 @@ func framesHouseholdConfig(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
 		return c.GetHouseholdConfig(rc.ctx, frameID)
@@ -168,7 +168,7 @@ func framesAlarms(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	deviceID := fs.String("device-id", "", "device ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*deviceID, "device-id"); err != nil {
 		return usage(rc, err.Error())
@@ -182,7 +182,7 @@ func framesList(rc *runCtx, args []string) int {
 	fs := flag.NewFlagSet("frames list", flag.ContinueOnError)
 	fs.SetOutput(rc.stderr)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	c, err := rc.client()
 	if err != nil {
@@ -217,7 +217,7 @@ func framesShow(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("id", "", "frame ID (default: --frame or config default)")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	var frameID int64
 	if *frameStr != "" {
@@ -260,7 +260,7 @@ func framesDevices(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
 		return c.ListFrameDevices(rc.ctx, frameID)
@@ -282,7 +282,7 @@ func framesSetDefault(rc *runCtx, args []string) int {
 	if rc.g.asJSON {
 		_ = rc.out.JSON(map[string]any{"default_frame_id": id})
 	} else {
-		fmt.Fprintf(rc.stdout, "default frame set to %d\n", id)
+		rc.out.Line("default frame set to %d", id)
 	}
 	return exitOK
 }

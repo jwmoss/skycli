@@ -5,6 +5,7 @@
 ## Start here
 
 - [Agent instructions](../AGENTS.md) - safe machine-readable usage patterns.
+- [API capabilities and gaps](api-capabilities.md) - source coverage and verification limits.
 - [Command index](commands/README.md) - one page for each public command.
 - [Health check flag](commands/doctor.md) - `skycli --doctor`.
 

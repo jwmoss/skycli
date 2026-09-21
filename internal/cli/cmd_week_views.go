@@ -28,11 +28,15 @@ type choreStreakStats struct {
 }
 
 func weekStart(date string) (time.Time, error) {
+	return weekStartIn(date, time.Local)
+}
+
+func weekStartIn(date string, loc *time.Location) (time.Time, error) {
 	var t time.Time
 	if date == "" || date == "current" {
-		t = time.Now()
+		t = time.Now().In(loc)
 	} else {
-		parsed, err := time.Parse(dateLayout, date)
+		parsed, err := time.ParseInLocation(dateLayout, date, loc)
 		if err != nil {
 			return time.Time{}, fmt.Errorf("invalid date %q: use YYYY-MM-DD", date)
 		}
@@ -43,7 +47,7 @@ func weekStart(date string) (time.Time, error) {
 		wd = 7
 	}
 	monday := t.AddDate(0, 0, -(wd - 1))
-	return time.Date(monday.Year(), monday.Month(), monday.Day(), 0, 0, 0, 0, time.Local), nil
+	return time.Date(monday.Year(), monday.Month(), monday.Day(), 0, 0, 0, 0, loc), nil
 }
 
 func choresWeek(rc *runCtx, args []string) int {
@@ -52,7 +56,7 @@ func choresWeek(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	date := fs.String("date", "", "week containing this date, YYYY-MM-DD")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	monday, err := weekStart(*date)
 	if err != nil {
@@ -131,7 +135,7 @@ func choresStreak(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	days := fs.Int("days", 30, "number of days to analyze")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if *days <= 0 {
 		return usage(rc, "--days must be greater than 0")
@@ -204,7 +208,7 @@ func computeChoreStreaks(chores []skylight.Chore, dates []string, catNames map[s
 	assigneeSet := map[string]bool{}
 
 	for _, ch := range chores {
-		if ch.Relationships.Category.Data == nil {
+		if ch.Attributes.Status == "skipped" || ch.Relationships.Category.Data == nil {
 			continue
 		}
 		assigneeID := ch.Relationships.Category.Data.ID

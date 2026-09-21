@@ -4,6 +4,7 @@ import (
 	"flag"
 	"sort"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/jwmoss/skycli/internal/skylight"
 )
@@ -46,7 +47,7 @@ func calendarSearch(rc *runCtx, args []string) int {
 	timezone := fs.String("timezone", "UTC", "IANA timezone")
 	include := fs.String("include", "categories", "related resources to include")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*query, "query"); err != nil {
 		return usage(rc, err.Error())
@@ -65,7 +66,7 @@ func calendarCountdowns(rc *runCtx, args []string) int {
 	timezone := fs.String("timezone", "UTC", "IANA timezone")
 	include := fs.String("include", "categories", "related resources to include")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*start, "start-date"); err != nil {
 		return usage(rc, err.Error())
@@ -83,7 +84,7 @@ func calendarRecentInvites(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
 		return c.ListRecentInvitedEmails(rc.ctx, frameID)
@@ -105,7 +106,7 @@ func calendarList(rc *runCtx, args []string) int {
 	start := fs.String("start-date", "", "start date filter YYYY-MM-DD")
 	end := fs.String("end-date", "", "end date filter YYYY-MM-DD")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
 		return c.ListCalendarEvents(rc.ctx, frameID, skylight.CalendarEventFilter{StartDate: *start, EndDate: *end})
@@ -118,17 +119,21 @@ func calendarWeek(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	date := fs.String("date", "", "week containing this date, YYYY-MM-DD")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
-	monday, err := weekStart(*date)
-	if err != nil {
-		return fail(rc, err)
-	}
-	sunday := monday.AddDate(0, 0, 6)
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {
 		return fail(rc, err)
 	}
+	loc, err := rc.frameLocation(frameID)
+	if err != nil {
+		return fail(rc, err)
+	}
+	monday, err := weekStartIn(*date, loc)
+	if err != nil {
+		return fail(rc, err)
+	}
+	sunday := monday.AddDate(0, 0, 6)
 	events, err := fetchCalendarEvents(rc, frameID, monday.Format(dateLayout), sunday.Format(dateLayout))
 	if err != nil {
 		return fail(rc, err)
@@ -178,6 +183,14 @@ func fetchCalendarEvents(rc *runCtx, frameID int64, start, end string) ([]calend
 func buildWeeklyCalendarDays(events []calendarEventEntry, monday time.Time) []weeklyCalendarDay {
 	byDate := map[string][]calendarEventEntry{}
 	for _, ev := range events {
+		if !ev.Attributes.AllDay {
+			if start, err := time.Parse(time.RFC3339, ev.Attributes.StartsAt); err == nil {
+				ev.Attributes.StartsAt = start.In(monday.Location()).Format(time.RFC3339)
+			}
+			if end, err := time.Parse(time.RFC3339, ev.Attributes.EndsAt); err == nil {
+				ev.Attributes.EndsAt = end.In(monday.Location()).Format(time.RFC3339)
+			}
+		}
 		d := ev.Attributes.StartsAt
 		if len(d) >= 10 {
 			d = d[:10]
@@ -190,6 +203,11 @@ func buildWeeklyCalendarDays(events []calendarEventEntry, monday time.Time) []we
 		key := d.Format(dateLayout)
 		items := byDate[key]
 		sort.Slice(items, func(a, b int) bool {
+			aTime, aErr := time.Parse(time.RFC3339, items[a].Attributes.StartsAt)
+			bTime, bErr := time.Parse(time.RFC3339, items[b].Attributes.StartsAt)
+			if aErr == nil && bErr == nil {
+				return aTime.Before(bTime)
+			}
 			return items[a].Attributes.StartsAt < items[b].Attributes.StartsAt
 		})
 		days[i] = weeklyCalendarDay{Day: d.Format("Mon"), Date: key, Events: items}
@@ -197,12 +215,27 @@ func buildWeeklyCalendarDays(events []calendarEventEntry, monday time.Time) []we
 	return days
 }
 
+func (rc *runCtx) frameLocation(frameID int64) (*time.Location, error) {
+	c, err := rc.client()
+	if err != nil {
+		return nil, err
+	}
+	frame, err := c.GetFrame(rc.ctx, frameID)
+	if err != nil {
+		return nil, err
+	}
+	if frame.Attributes.Timezone == "" {
+		return time.Local, nil
+	}
+	return time.LoadLocation(frame.Attributes.Timezone)
+}
+
 func calendarSources(rc *runCtx, args []string) int {
 	fs := flag.NewFlagSet("calendar sources", flag.ContinueOnError)
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
 		return c.ListSourceCalendars(rc.ctx, frameID)
@@ -230,7 +263,7 @@ func calendarCreate(rc *runCtx, args []string, countdown bool) int {
 	eventType := fs.String("event-type", defaultEventType, "event type")
 	body, bodyFile := bodyFlags(fs, rc)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	payload, err := readPayload(rc, *body, *bodyFile)
 	if err != nil {
@@ -279,7 +312,7 @@ func calendarUpdate(rc *runCtx, args []string) int {
 	eventType := fs.String("event-type", "", "event type")
 	body, bodyFile := bodyFlags(fs, rc)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*eventID, "event-id"); err != nil {
 		return usage(rc, err.Error())
@@ -306,7 +339,7 @@ func calendarDelete(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	eventID := fs.String("event-id", "", "event ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*eventID, "event-id"); err != nil {
 		return usage(rc, err.Error())

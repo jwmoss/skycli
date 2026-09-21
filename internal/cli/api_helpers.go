@@ -13,12 +13,15 @@ import (
 )
 
 func printJSONBytes(rc *runCtx, data []byte) int {
-	var pretty any
-	if json.Unmarshal(data, &pretty) == nil {
-		_ = rc.out.JSON(pretty)
+	if json.Valid(data) {
+		if err := rc.out.JSON(json.RawMessage(data)); err != nil {
+			return fail(rc, err)
+		}
 		return exitOK
 	}
-	fmt.Fprintln(rc.stdout, string(data))
+	if _, err := fmt.Fprintln(rc.stdout, string(data)); err != nil {
+		return fail(rc, err)
+	}
 	return exitOK
 }
 
@@ -38,7 +41,7 @@ func readPayload(rc *runCtx, body, bodyFile string) (map[string]any, error) {
 			if err != nil {
 				return nil, err
 			}
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 			rdr = f
 		}
 		raw, err = io.ReadAll(rdr)
@@ -48,8 +51,13 @@ func readPayload(rc *runCtx, body, bodyFile string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal(raw, &payload); err != nil {
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payload); err != nil {
 		return nil, fmt.Errorf("parse body JSON: %w", err)
+	}
+	if payload == nil || !json.Valid(raw) {
+		return nil, fmt.Errorf("body must be a JSON object")
 	}
 	return payload, nil
 }

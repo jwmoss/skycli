@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io"
 	"net/url"
 	"os"
@@ -17,10 +16,10 @@ func runRaw(rc *runCtx, args []string) int {
 	body := fs.String("body", "", "request body (JSON string); use --body-file for stdin or file")
 	bodyFile := fs.String("body-file", "", "path or - for stdin")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	rest := fs.Args()
-	if len(rest) == 0 {
+	if len(rest) != 1 {
 		return usage(rc, "skycli raw [--method M] [--body JSON] <path-or-url>")
 	}
 	path := rest[0]
@@ -37,7 +36,7 @@ func runRaw(rc *runCtx, args []string) int {
 		query = q
 		path = path[:i]
 	}
-	var payload any
+	var payload json.RawMessage
 	switch {
 	case *bodyFile != "":
 		var rdr io.Reader
@@ -48,37 +47,36 @@ func runRaw(rc *runCtx, args []string) int {
 			if err != nil {
 				return fail(rc, err)
 			}
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 			rdr = f
 		}
 		raw, err := io.ReadAll(rdr)
 		if err != nil {
 			return fail(rc, err)
 		}
-		if err := json.Unmarshal(raw, &payload); err != nil {
-			return fail(rc, fmt.Errorf("parse body JSON: %w", err))
+		if !json.Valid(raw) {
+			return usage(rc, "body must be valid JSON")
 		}
+		payload = raw
 	case *body != "":
-		if err := json.Unmarshal([]byte(*body), &payload); err != nil {
-			return fail(rc, fmt.Errorf("parse --body JSON: %w", err))
+		if !json.Valid([]byte(*body)) {
+			return usage(rc, "body must be valid JSON")
 		}
+		payload = json.RawMessage(*body)
 	}
 	c, err := rc.client()
 	if err != nil {
 		return fail(rc, err)
 	}
-	data, err := c.Do(rc.ctx, strings.ToUpper(*method), path, query, payload)
+	var requestBody any
+	if payload != nil {
+		requestBody = payload
+	}
+	data, err := c.Do(rc.ctx, strings.ToUpper(*method), path, query, requestBody)
 	if err != nil {
 		return fail(rc, err)
 	}
-	// Pretty-print if JSON, else raw.
-	var pretty any
-	if json.Unmarshal(data, &pretty) == nil {
-		_ = rc.out.JSON(pretty)
-		return exitOK
-	}
-	fmt.Fprintln(rc.stdout, string(data))
-	return exitOK
+	return printJSONBytes(rc, data)
 }
 
 func isHTTPURL(s string) bool {

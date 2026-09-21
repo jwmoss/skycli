@@ -97,7 +97,7 @@ func TestFeatureReadsUseVerifiedPrivateEndpoints(t *testing.T) {
 					)
 				}
 				w.Header().Set("Content-Type", "application/json")
-				fmt.Fprint(w, `{}`)
+				_, _ = fmt.Fprint(w, `{}`)
 			}))
 			defer srv.Close()
 

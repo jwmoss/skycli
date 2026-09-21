@@ -25,7 +25,7 @@ var (
 
 func runAuth(rc *runCtx, args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(rc.stderr, "skycli auth <login|import-mac|refresh|set-token|status>")
+		_, _ = fmt.Fprintln(rc.stderr, "skycli auth <login|import-mac|refresh|set-token|status>")
 		return exitUsage
 	}
 	sub, rest := args[0], args[1:]
@@ -52,7 +52,7 @@ func authLogin(rc *runCtx, args []string) int {
 	fingerprint := fs.String("fingerprint", "", "device fingerprint UUID; generated when omitted")
 	passwordStdin := fs.Bool("password-stdin", false, "read password from stdin")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*email, "email"); err != nil {
 		return usage(rc, err.Error())
@@ -74,7 +74,7 @@ func authLogin(rc *runCtx, args []string) int {
 	}
 	if rc.g.traceHTTP {
 		opts = append(opts, skylight.WithTrace(func(method, url string, status int, d time.Duration) {
-			fmt.Fprintf(rc.stderr, "[http] %s %s -> %d (%s)\n", method, url, status, d)
+			_, _ = fmt.Fprintf(rc.stderr, "[http] %s %s -> %d (%s)\n", method, url, status, d)
 		}))
 	}
 	c := skylight.New(rc.cfg.BaseURL, "", opts...)
@@ -125,7 +125,7 @@ func authImportMac(rc *runCtx, args []string) int {
 	var path string
 	fs.StringVar(&path, "mmkv", "", "path to mmkv.default (default: Skylight Mac container)")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	auth, err := ReadMMKVAuth(path)
 	if err != nil {
@@ -177,16 +177,16 @@ func readSecretLine(rc *runCtx, prompt, fallbackPrompt string) (string, error) {
 	if f, ok := rc.stdin.(fdReader); ok {
 		fd := int(f.Fd())
 		if stdinIsTerminal(fd) {
-			fmt.Fprint(rc.stderr, prompt)
+			_, _ = fmt.Fprint(rc.stderr, prompt)
 			data, err := readTerminalSecret(fd)
-			fmt.Fprintln(rc.stderr)
+			_, _ = fmt.Fprintln(rc.stderr)
 			if err != nil {
 				return "", err
 			}
 			return strings.TrimSpace(string(data)), nil
 		}
 	}
-	fmt.Fprintln(rc.stderr, fallbackPrompt)
+	_, _ = fmt.Fprintln(rc.stderr, fallbackPrompt)
 	return readSingleLine(rc.stdin)
 }
 
@@ -218,7 +218,7 @@ func authRefresh(rc *runCtx, args []string) int {
 	refreshToken := fs.String("refresh-token", "", "override refresh token for this refresh and save it on success")
 	fingerprint := fs.String("fingerprint", "", "override device fingerprint for this refresh and save it on success")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if *refreshToken != "" {
 		rc.cfg.RefreshToken = *refreshToken
@@ -254,7 +254,7 @@ func authSetToken(rc *runCtx, args []string) int {
 	var scheme string
 	fs.StringVar(&scheme, "scheme", config.DefaultAuthScheme, "auth scheme: Bearer or Basic")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	token, err := readSecretLine(rc, "Token: ", "Paste token (single line), then press Enter:")
 	if err != nil {

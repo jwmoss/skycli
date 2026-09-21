@@ -27,7 +27,7 @@ func albumsList(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
 		return c.ListAlbums(rc.ctx, frameID)
@@ -41,7 +41,7 @@ func albumMessages(rc *runCtx, args []string) int {
 	albumID := fs.String("album-id", "", "album ID")
 	page := fs.Int("page", 1, "messages page")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*albumID, "album-id"); err != nil {
 		return usage(rc, err.Error())
@@ -60,7 +60,7 @@ func albumMessageIDs(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID")
 	albumID := fs.String("album-id", "", "album ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*albumID, "album-id"); err != nil {
 		return usage(rc, err.Error())

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"runtime/debug"
 	"strings"
 )
@@ -19,12 +18,12 @@ func runVersion(rc *runCtx, args []string) int {
 		})
 		return exitOK
 	}
-	fmt.Fprintf(rc.stdout, "skycli %s\n", v)
+	rc.out.Line("skycli %s", v)
 	if c != "" {
-		fmt.Fprintf(rc.stdout, "commit %s\n", c)
+		rc.out.Line("commit %s", c)
 	}
 	if d != "" {
-		fmt.Fprintf(rc.stdout, "built %s\n", d)
+		rc.out.Line("built %s", d)
 	}
 	return exitOK
 }

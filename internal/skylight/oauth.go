@@ -56,7 +56,7 @@ func (c *Client) RefreshOAuthToken(ctx context.Context, refreshToken, fingerprin
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -141,7 +141,7 @@ func (c *Client) fetchLoginCSRF(ctx context.Context, hc *http.Client) (string, e
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
@@ -182,7 +182,7 @@ func (c *Client) postLoginSession(ctx context.Context, hc *http.Client, email, p
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
@@ -214,7 +214,7 @@ func (c *Client) fetchOAuthCode(ctx context.Context, hc *http.Client, fingerprin
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
@@ -259,7 +259,7 @@ func (c *Client) exchangeOAuthCode(ctx context.Context, code, fingerprint string
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err

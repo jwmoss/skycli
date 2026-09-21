@@ -38,7 +38,7 @@ func TestParseResourceSelectionRejectsUnknown(t *testing.T) {
 func TestExportFailsWhenListItemFetchFails(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/frames/123/lists" {
-			fmt.Fprint(w, `{"data":[{"id":"77","attributes":{"label":"Groceries"}}]}`)
+			_, _ = fmt.Fprint(w, `{"data":[{"id":"77","attributes":{"label":"Groceries"}}]}`)
 			return
 		}
 		http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
@@ -69,7 +69,7 @@ func TestCalendarExportPreservesDescriptionAndCategory(t *testing.T) {
 		if r.Method != http.MethodGet || r.URL.Path != "/api/frames/123/calendar_events" {
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
-		fmt.Fprint(w, `{"data":[{"id":"evt-1","attributes":{"summary":"Dentist","starts_at":"2026-06-10T14:00:00.000Z","ends_at":"2026-06-10T15:00:00.000Z","all_day":false,"color":"#00526D","description":"Bring forms"},"relationships":{"category":{"data":{"id":"20431189","type":"category"}}}}]}`)
+		_, _ = fmt.Fprint(w, `{"data":[{"id":"evt-1","attributes":{"summary":"Dentist","starts_at":"2026-06-10T14:00:00.000Z","ends_at":"2026-06-10T15:00:00.000Z","all_day":false,"color":"#00526D","description":"Bring forms"},"relationships":{"category":{"data":{"id":"20431189","type":"category"}}}}]}`)
 	}))
 	defer srv.Close()
 
@@ -103,13 +103,17 @@ func TestCalendarExportPreservesDescriptionAndCategory(t *testing.T) {
 func TestCalendarImportPostsDescriptionAndCategory(t *testing.T) {
 	var payload map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/frames/123/categories" {
+			_, _ = fmt.Fprint(w, `{"data":[{"id":"20431189"}]}`)
+			return
+		}
 		if r.Method != http.MethodPost || r.URL.Path != "/api/frames/123/calendar_events" {
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode body: %v", err)
 		}
-		fmt.Fprint(w, `{"data":{"id":"evt-1"}}`)
+		_, _ = fmt.Fprint(w, `{"data":{"id":"evt-1"}}`)
 	}))
 	defer srv.Close()
 

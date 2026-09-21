@@ -29,3 +29,7 @@ skycli photos delete --message-ids 10,11 --json
 ## Safety
 
 `download` is a file write but does not mutate the Skylight account. `upload` and `delete` mutate the account.
+
+Upload and download use the global `--timeout` value.
+Uploads stream the local file. Downloads replace the destination only after a complete transfer.
+Asset requests do not receive Skylight credentials.

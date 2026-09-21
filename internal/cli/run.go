@@ -84,7 +84,7 @@ func (rc *runCtx) requireToken() (string, string, error) {
 			if rc.cfg.AccessToken == "" || tokenExpired(rc.cfg.AccessTokenExpAt) {
 				return "", "", fmt.Errorf("refresh access token: %w", err)
 			}
-			fmt.Fprintf(rc.stderr, "warning: refresh access token: %v\n", err)
+			_, _ = fmt.Fprintf(rc.stderr, "warning: refresh access token: %v\n", err)
 		}
 	}
 	if rc.cfg.AccessToken == "" {
@@ -120,7 +120,7 @@ func (rc *runCtx) refreshConfiguredToken(force bool) (*skylight.OAuthTokenRespon
 		return nil, time.Time{}, errors.New("no device fingerprint configured — re-run `skycli auth import-mac`")
 	}
 	if unlock, err := acquireLockFile(rc.refreshLockPath()); err != nil {
-		fmt.Fprintf(rc.stderr, "warning: lock token refresh: %v\n", err)
+		_, _ = fmt.Fprintf(rc.stderr, "warning: lock token refresh: %v\n", err)
 	} else {
 		defer unlock()
 	}
@@ -139,7 +139,7 @@ func (rc *runCtx) refreshConfiguredToken(force bool) (*skylight.OAuthTokenRespon
 	}
 	if rc.g.traceHTTP {
 		opts = append(opts, skylight.WithTrace(func(method, url string, status int, d time.Duration) {
-			fmt.Fprintf(rc.stderr, "[http] %s %s -> %d (%s)\n", method, url, status, d)
+			_, _ = fmt.Fprintf(rc.stderr, "[http] %s %s -> %d (%s)\n", method, url, status, d)
 		}))
 	}
 	c := skylight.New(rc.cfg.BaseURL, "", opts...)
@@ -232,7 +232,7 @@ func (rc *runCtx) client() (*skylight.Client, error) {
 	}
 	if rc.g.traceHTTP {
 		opts = append(opts, skylight.WithTrace(func(method, url string, status int, d time.Duration) {
-			fmt.Fprintf(rc.stderr, "[http] %s %s -> %d (%s)\n", method, url, status, d)
+			_, _ = fmt.Fprintf(rc.stderr, "[http] %s %s -> %d (%s)\n", method, url, status, d)
 		}))
 	}
 	return skylight.New(rc.cfg.BaseURL, token, opts...), nil
@@ -343,7 +343,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		g.deny = os.Getenv("SKYCLI_DENY_COMMANDS")
 	}
 	if g.asJSON && g.plain {
-		fmt.Fprintln(stderr, "choose only one of --json or --plain")
+		_, _ = fmt.Fprintln(stderr, "choose only one of --json or --plain")
 		return exitUsage
 	}
 	rest := root.Args()
@@ -356,7 +356,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 					"exit_code": exitUsage,
 				})
 			} else {
-				fmt.Fprintln(stderr, "--doctor cannot be combined with a command")
+				_, _ = fmt.Fprintln(stderr, "--doctor cannot be combined with a command")
 			}
 			return exitUsage
 		}
@@ -365,7 +365,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 			if g.asJSON {
 				_ = newPrinter(stdout, true, false).JSON(map[string]any{"error": err.Error()})
 			} else {
-				fmt.Fprintln(stderr, "error:", err)
+				_, _ = fmt.Fprintln(stderr, "error:", err)
 			}
 			return exitErr
 		}
@@ -378,7 +378,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 			cfg:    cfg,
 			out:    newPrinter(stdout, g.asJSON, g.plain),
 		}
-		return runDoctor(rc, nil)
+		return rc.finishOutput(runDoctor(rc, nil))
 	}
 	if len(rest) == 0 {
 		if g.asJSON {
@@ -389,15 +389,35 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return exitUsage
 	}
 	cmd, sub := rest[0], rest[1:]
+	if len(sub) == 1 && (sub[0] == "--help" || sub[0] == "-h") {
+		for _, item := range buildCommandCatalog().Commands {
+			if item.Name != cmd && !containsName(item.Aliases, cmd) {
+				continue
+			}
+			if len(item.Subcommands) == 0 {
+				break
+			}
+			if g.asJSON {
+				_ = newPrinter(stdout, true, false).JSON(item)
+			} else {
+				_, _ = fmt.Fprintf(stderr, "skycli %s — %s\n", item.Name, item.Summary)
+				for _, subcommand := range item.Subcommands {
+					_, _ = fmt.Fprintf(stderr, "  %-18s %s\n", subcommand.Name, subcommand.Summary)
+				}
+				_, _ = fmt.Fprintf(stderr, "Use skycli %s <command> --help for flags.\n", item.Name)
+			}
+			return exitOK
+		}
+	}
 
 	if err := enforceSafety(g, rest); err != nil {
-		fmt.Fprintln(stderr, "error:", err.Error())
+		_, _ = fmt.Fprintln(stderr, "error:", err.Error())
 		return exitErr
 	}
 
 	cfg, err := config.Load(g.configPath)
 	if err != nil {
-		fmt.Fprintln(stderr, "error:", err)
+		_, _ = fmt.Fprintln(stderr, "error:", err)
 		return exitErr
 	}
 
@@ -413,7 +433,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 
 	for _, c := range topLevelCommands() {
 		if c.name == cmd {
-			return c.run(rc, sub)
+			return rc.finishOutput(c.run(rc, sub))
 		}
 	}
 	if g.asJSON {
@@ -426,19 +446,48 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		})
 		return exitUsage
 	}
-	fmt.Fprintf(stderr, "unknown command: %s\n", cmd)
+	_, _ = fmt.Fprintf(stderr, "unknown command: %s\n", cmd)
 	root.Usage()
 	return exitUsage
+}
+
+func (rc *runCtx) finishOutput(code int) int {
+	if rc.out.err != nil {
+		_, _ = fmt.Fprintln(rc.stderr, "write output:", rc.out.err)
+		return exitErr
+	}
+	return code
 }
 
 // fail reports a human-readable error and returns exitErr.
 func fail(rc *runCtx, err error) int {
 	if rc.g.asJSON {
-		_ = rc.out.JSON(map[string]string{"error": err.Error()})
+		out := map[string]any{"error": err.Error()}
+		var apiErr *skylight.APIError
+		if errors.As(err, &apiErr) {
+			out["http_status"] = apiErr.Status
+		}
+		_ = rc.out.JSON(out)
 	} else {
-		fmt.Fprintln(rc.stderr, "error:", err.Error())
+		_, _ = fmt.Fprintln(rc.stderr, "error:", err.Error())
 	}
 	return exitErr
+}
+
+func flagError(rc *runCtx, err error) int {
+	if errors.Is(err, flag.ErrHelp) {
+		return exitOK
+	}
+	return usage(rc, err.Error())
+}
+
+func containsName(names []string, name string) bool {
+	for _, candidate := range names {
+		if candidate == name {
+			return true
+		}
+	}
+	return false
 }
 
 // usage prints help to stderr and returns exitUsage.
@@ -451,26 +500,26 @@ func usage(rc *runCtx, msg string) int {
 				"exit_code": exitUsage,
 			})
 		} else {
-			fmt.Fprintln(rc.stderr, msg)
+			_, _ = fmt.Fprintln(rc.stderr, msg)
 		}
 	}
 	return exitUsage
 }
 
 func printRootUsage(w io.Writer, root *flag.FlagSet) {
-	fmt.Fprintln(w, "skycli — unofficial CLI for the Skylight Calendar private API")
-	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Usage: skycli [global flags] <command> [args]")
-	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Global flags:")
+	_, _ = fmt.Fprintln(w, "skycli — unofficial CLI for the Skylight Calendar private API")
+	_, _ = fmt.Fprintln(w, "")
+	_, _ = fmt.Fprintln(w, "Usage: skycli [global flags] <command> [args]")
+	_, _ = fmt.Fprintln(w, "")
+	_, _ = fmt.Fprintln(w, "Global flags:")
 	root.PrintDefaults()
-	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Commands:")
+	_, _ = fmt.Fprintln(w, "")
+	_, _ = fmt.Fprintln(w, "Commands:")
 	for _, c := range topLevelCommands() {
-		fmt.Fprintf(w, "  %-12s %s\n", c.name, c.summary)
+		_, _ = fmt.Fprintf(w, "  %-12s %s\n", c.name, c.summary)
 	}
-	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Env: SKYLIGHT_ACCESS_TOKEN, SKYLIGHT_AUTH_SCHEME, SKYLIGHT_FRAME_ID")
+	_, _ = fmt.Fprintln(w, "")
+	_, _ = fmt.Fprintln(w, "Env: SKYLIGHT_ACCESS_TOKEN, SKYLIGHT_AUTH_SCHEME, SKYLIGHT_FRAME_ID")
 }
 
 var rootBoolFlags = map[string]bool{

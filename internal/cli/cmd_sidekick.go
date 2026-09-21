@@ -20,7 +20,7 @@ func sidekickStatus(rc *runCtx, args []string) int {
 	fs := flag.NewFlagSet("sidekick status", flag.ContinueOnError)
 	fs.SetOutput(rc.stderr)
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	c, err := rc.client()
 	if err != nil {
@@ -46,7 +46,7 @@ func sidekickHistory(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return flagError(rc, err)
 	}
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {
