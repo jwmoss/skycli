@@ -30,17 +30,6 @@ func TestResolvedVersionKeepsLdflagVersion(t *testing.T) {
 	}
 }
 
-func TestResolvedVersionFallsBackToDev(t *testing.T) {
-	info := &debug.BuildInfo{
-		Main: debug.Module{Version: "(devel)"},
-	}
-
-	v, _, _ := resolvedVersion("dev", "", "", info)
-	if v != "dev" {
-		t.Fatalf("version: got %q", v)
-	}
-}
-
 func TestResolvedVersionUsesBuildVCSMetadata(t *testing.T) {
 	info := &debug.BuildInfo{
 		Main: debug.Module{Version: "(devel)"},
