@@ -51,7 +51,7 @@ func (g *globals) register(fs *flag.FlagSet) {
 	fs.BoolVar(&g.doctor, "doctor", false, "run readonly token/API connectivity checks and exit")
 	fs.DurationVar(&g.timeout, "timeout", 30*time.Second, "HTTP timeout")
 	fs.BoolVar(&g.traceHTTP, "trace-http", false, "log every HTTP request to stderr (no secrets)")
-	fs.BoolVar(&g.dryRun, "dry-run", false, "refuse all non-GET HTTP calls")
+	fs.BoolVar(&g.dryRun, "dry-run", false, "refuse non-GET HTTP calls and configuration/credential changes")
 	fs.BoolVar(&g.readOnly, "readonly", false, "block mutating commands and non-GET HTTP calls")
 	fs.StringVar(&g.allow, "allow-commands", "", "comma-separated allowed command prefixes")
 	fs.StringVar(&g.deny, "deny-commands", "", "comma-separated denied command prefixes")
@@ -113,6 +113,12 @@ func (rc *runCtx) shouldRefreshConfiguredToken() bool {
 // after acquiring the lock and the network call is skipped when another
 // invocation already refreshed.
 func (rc *runCtx) refreshConfiguredToken(force bool) (*skylight.OAuthTokenResponse, time.Time, error) {
+	if rc.g.dryRun {
+		return nil, time.Time{}, errors.New("dry-run: refusing token refresh")
+	}
+	if rc.g.readOnly {
+		return nil, time.Time{}, errors.New("readonly: refusing token refresh; supply an explicit token or refresh without --readonly")
+	}
 	if rc.cfg.RefreshToken == "" {
 		return nil, time.Time{}, errors.New("no refresh token configured")
 	}

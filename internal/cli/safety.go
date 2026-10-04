@@ -124,6 +124,12 @@ func enforceSafety(g *globals, args []string) error {
 	if g.readOnly && !isReadOnlyInvocation(args) {
 		return fmt.Errorf("readonly mode blocks mutating command %q", path)
 	}
+	if g.dryRun {
+		switch path {
+		case "auth login", "auth refresh", "auth set-token", "auth import-mac", "config set", "config unset", "config edit", "frames set-default", "frame set-default":
+			return fmt.Errorf("dry-run: refusing configuration or credential change %q", path)
+		}
+	}
 	return nil
 }
 

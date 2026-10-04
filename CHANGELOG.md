@@ -4,6 +4,16 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- Refuse OAuth login and token refresh under safety flags before remote calls or credential changes.
+- Refuse local configuration and credential changes under global dry-run.
+- Preserve credentials and config during safe reads instead of automatic secret migration.
+
+### Added
+
+- Add isolated CLI flow tests with local HTTP fixtures and a command coverage matrix.
+
 ## v0.2.0 - 2026-09-20
 
 ### Fixed

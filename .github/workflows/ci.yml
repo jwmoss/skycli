@@ -51,6 +51,16 @@ jobs:
       - name: Race check
         if: runner.os == 'Linux'
         run: go test -race ./...
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        if: runner.os == 'Linux'
+        with:
+          node-version: '26'
+          cache: npm
+      - name: CLI flow tests
+        if: runner.os == 'Linux'
+        run: |
+          npm ci
+          npm run test:e2e
 
   quality:
     runs-on: ubuntu-latest

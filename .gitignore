@@ -6,3 +6,5 @@
 
 # clawpatch tool state
 /.clawpatch/
+/node_modules/
+/.e2e/

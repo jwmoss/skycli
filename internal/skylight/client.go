@@ -103,14 +103,21 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("skylight %s %s: HTTP %d", e.Method, e.Path, e.Status)
 }
 
-func (c *Client) Do(ctx context.Context, method, path string, query url.Values, body any) ([]byte, error) {
+func (c *Client) checkMethod(method, path string) error {
 	if method != http.MethodGet {
 		if c.dryRun {
-			return nil, fmt.Errorf("dry-run: refusing %s %s", method, path)
+			return fmt.Errorf("dry-run: refusing %s %s", method, path)
 		}
 		if c.readOnly {
-			return nil, fmt.Errorf("readonly: refusing %s %s", method, path)
+			return fmt.Errorf("readonly: refusing %s %s", method, path)
 		}
+	}
+	return nil
+}
+
+func (c *Client) Do(ctx context.Context, method, path string, query url.Values, body any) ([]byte, error) {
+	if err := c.checkMethod(method, path); err != nil {
+		return nil, err
 	}
 	u := path
 	if !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://") {
