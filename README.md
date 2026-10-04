@@ -117,7 +117,7 @@ and non-interactive usage.
 | `--plain`        | off     | Emit stable TSV/plain output where available |
 | `--timeout DUR`  | 30s     | HTTP timeout |
 | `--trace-http`   | off     | Log every request to stderr |
-| `--dry-run`      | off     | Refuse non-GET HTTP calls |
+| `--dry-run`      | off     | Refuse non-GET HTTP calls and configuration or credential changes |
 | `--readonly`     | off     | Block mutating commands and refuse non-GET HTTP calls |
 | `--allow-commands LIST` | — | Comma-separated command allowlist |
 | `--deny-commands LIST`  | — | Comma-separated command denylist |
@@ -125,6 +125,13 @@ and non-interactive usage.
 | `--frame ID`     | —       | Frame override (also `SKYLIGHT_FRAME_ID`) |
 
 ## Output for agents
+
+Safety flags refuse OAuth login and token refresh. If a stored token expires,
+refresh it without a safety flag or supply a valid explicit token.
+Safe reads do not migrate credentials to another secret backend.
+Place global `--dry-run` before the command. Import also accepts its own
+`--dry-run` after the command to validate references and report counts.
+Read commands can still save requested exports, downloads, or watch state.
 
 Use `skycli commands --json` to discover the command surface and docs paths.
 Every bounded command supports `--json`; table-style commands also support
@@ -154,14 +161,17 @@ make fmt
 make test
 make vet
 make ci
+npm ci
+npm run test:e2e
 make build
 make live-readonly-smoke
 make release-check
 make release-snapshot
 ```
 
-CI intentionally stays small: cross-platform `go test`, `go vet`, and
-`go build`. Release checks are separate so local development stays fast while
+CI runs cross-platform Go checks and Linux CLI flow tests against local HTTP fixtures.
+The [flow coverage matrix](tests/e2e/README.md) records controlled tests and live limits.
+Release checks are separate so local development stays fast while
 tagged builds still validate the GoReleaser configuration and Homebrew cask
 generation path.
 

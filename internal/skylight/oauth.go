@@ -29,6 +29,9 @@ type OAuthTokenResponse struct {
 }
 
 func (c *Client) RefreshOAuthToken(ctx context.Context, refreshToken, fingerprint string) (*OAuthTokenResponse, error) {
+	if err := c.checkMethod(http.MethodPost, "/oauth/token"); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(refreshToken) == "" {
 		return nil, fmt.Errorf("refresh token is required")
 	}
@@ -86,6 +89,9 @@ func (c *Client) RefreshOAuthToken(ctx context.Context, refreshToken, fingerprin
 }
 
 func (c *Client) LoginOAuth(ctx context.Context, email, password, fingerprint string) (*OAuthTokenResponse, error) {
+	if err := c.checkMethod(http.MethodPost, "/auth/session"); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(email) == "" {
 		return nil, fmt.Errorf("email is required")
 	}

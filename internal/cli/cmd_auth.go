@@ -69,6 +69,8 @@ func authLogin(rc *runCtx, args []string) int {
 		fp = newUUID()
 	}
 	opts := []skylight.Option{
+		skylight.WithDryRun(rc.g.dryRun),
+		skylight.WithReadOnly(rc.g.readOnly),
 		skylight.WithTimeout(rc.g.timeout),
 		skylight.WithAPIVersion(rc.cfg.APIVersion),
 	}
