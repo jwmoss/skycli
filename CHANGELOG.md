@@ -4,6 +4,8 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+## v0.2.1 - 2026-10-06
+
 ### Fixed
 
 - Refuse OAuth login and token refresh under safety flags before remote calls or credential changes.
