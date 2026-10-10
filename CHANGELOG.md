@@ -4,6 +4,35 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- Replace Go unit/fixture tests and the Node fake-server suite with simple live end-to-end tests.
+- Test real GET requests and one temporary-list POST, readback, and cleanup cycle.
+- Keep build, lint, and static checks in CI; run live account tests explicitly with `make test`.
+- Remove the Node test dependency and its configuration.
+
+### Added
+
+- Manage profiles and labels, including deletion with reassignment and profile hats through JSON fields.
+- Add task undo/unskip, ordering, linked profiles, due times, completion-based repeats, and routine habit controls.
+- Add calendar recurrence, invitations, multiple profiles, sync destinations, and source-calendar changes.
+- Add Sidekick intent creation, result inspection, draft approval, and undo for JSON workflows.
+- Add Task Box edits, reward point adjustments, meal/category edits, and album management.
+- Add photo captions, likes, comments, and copies between frames.
+- Add device, household, notification, and device-feature settings; household users; and JSON nudge controls.
+- Record the October 2026 feature audit, shipped-app contracts, and remaining gaps.
+
+### Fixed
+
+- Match the shipped app's `2026-08-05` API version by default.
+- Route routines through chores instead of the unavailable routines endpoint.
+- Preserve occurrence IDs and edit scopes for recurring tasks.
+- Preserve new profile/task fields and calendar metadata in weekly JSON output.
+- Use `countdown_enabled` for countdown events and flat `summary` fields for Task Box items.
+- Send bulk photo deletion IDs as repeated query parameters.
+
+## v0.2.1 - 2026-10-06
+
 ### Fixed
 
 - Refuse OAuth login and token refresh under safety flags before remote calls or credential changes.

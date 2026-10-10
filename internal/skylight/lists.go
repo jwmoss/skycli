@@ -118,3 +118,12 @@ func (c *Client) ListTaskBoxItems(ctx context.Context, frameID int64) (json.RawM
 func (c *Client) CreateTaskBoxItem(ctx context.Context, frameID int64, payload map[string]any) (json.RawMessage, error) {
 	return c.Do(ctx, http.MethodPost, fmt.Sprintf("/api/frames/%d/task_box/items", frameID), nil, payload)
 }
+
+func (c *Client) UpdateTaskBoxItem(ctx context.Context, frameID int64, id string, payload map[string]any) (json.RawMessage, error) {
+	return c.Do(ctx, http.MethodPatch, fmt.Sprintf("/api/frames/%d/task_box/items/%s", frameID, id), nil, payload)
+}
+
+func (c *Client) DeleteTaskBoxItem(ctx context.Context, frameID int64, id string) error {
+	_, err := c.Do(ctx, http.MethodDelete, fmt.Sprintf("/api/frames/%d/task_box/items/%s", frameID, id), nil, nil)
+	return err
+}

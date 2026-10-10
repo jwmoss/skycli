@@ -6,7 +6,7 @@ Unofficial. Not affiliated with Skylight. Use with accounts you own.
 
 `skycli` wraps a broad private-API surface: frames, categories, chores,
 rewards, calendar events, lists/grocery, meals, photos/albums, routines, bounties,
-rotations, notifications, nudges, month reviews, Sidekick access/history,
+rotations, device settings, notifications, nudges, month reviews, Sidekick imports/drafts,
 export/import, status, analytics, and watch.
 
 ## Docs
@@ -15,6 +15,18 @@ export/import, status, analytics, and watch.
 - [Command index](docs/commands/README.md)
 - [API capabilities and gaps](docs/api-capabilities.md)
 - Machine-readable command catalog: `skycli commands --json`
+
+## Compatibility
+
+The October 2026 audit adds profile management, modern tasks and routines,
+calendar sources, Sidekick drafts, album/photo edits, meal edits, and device controls.
+The default API version is `2026-08-05`. Explicit config overrides remain unchanged.
+
+Contracts come from Skylight 2.26.0 and live read-only checks.
+The App Store lists 2.27.0; its binary is not inspected.
+Most writes still need live account verification. The test suite uses real requests only.
+See the [coverage ledger](docs/api-capabilities.md) for remaining gaps and
+[contract evidence](docs/api-contracts-2026-10.md) for methods and payloads.
 
 ## Install
 
@@ -74,13 +86,14 @@ The full command surface is documented under
 
 - [Auth](docs/commands/auth.md)
 - [Frames](docs/commands/frames.md)
+- [Profiles and labels](docs/commands/categories.md)
 - [Chores](docs/commands/chores.md)
 - [Rewards](docs/commands/rewards.md)
 - [Calendar](docs/commands/calendar.md)
 - [Lists](docs/commands/lists.md) and [grocery](docs/commands/grocery.md)
 - [Meals](docs/commands/meals.md), [photos](docs/commands/photos.md),
   [albums](docs/commands/albums.md), and [routines](docs/commands/routines.md)
-- [Sidekick](docs/commands/sidekick.md) access and auto-creation history
+- [Sidekick](docs/commands/sidekick.md) imports, generated plans, drafts, and history
 - [Reports](docs/commands/status.md), [analytics](docs/commands/analytics.md),
   [home](docs/commands/home.md), and [watch](docs/commands/watch.md)
 - [Export](docs/commands/export.md), [import](docs/commands/import.md),
@@ -148,29 +161,35 @@ skycli --json chores list
 skycli chores list --readonly --json
 ```
 
-Run real-account read-only integration checks with:
+Run simple live end-to-end tests with:
 
 ```bash
-make live-readonly-smoke
+make test                  # GET checks, then create/read/delete one temporary list
+make live-readonly-smoke    # GET checks only
 ```
+
+Tests use your configured account and frame. The temporary list stays hidden from the display.
+The script deletes only the list it creates and checks that cleanup succeeds.
+Set `SKYLIGHT_FRAME_ID` to select another frame.
+Use `SKYCLI_BIN` to test another binary or supply `--config PATH`.
+
 
 ## Development
 
 ```bash
 make fmt
-make test
 make vet
 make ci
-npm ci
-npm run test:e2e
-make build
+make test
 make live-readonly-smoke
 make release-check
 make release-snapshot
 ```
 
-CI runs cross-platform Go checks and Linux CLI flow tests against local HTTP fixtures.
-The [flow coverage matrix](tests/e2e/README.md) records controlled tests and live limits.
+CI runs cross-platform builds, formatting, vet, dependency, and security checks.
+The [live test script](scripts/live-e2e.py) uses Python's standard library and real Skylight requests.
+Live tests stay outside CI because they use an account and create temporary data.
+The suite checks basic reads and one write cycle. It does not cover every command.
 Release checks are separate so local development stays fast while
 tagged builds still validate the GoReleaser configuration and Homebrew cask
 generation path.
@@ -203,5 +222,4 @@ MIT
 Export/import handles selected resource templates, not full account backups.
 Imports validate references and support the same frame only.
 Use `skycli <group> --help` to list commands, then `skycli <group> <command> --help` for flags.
-Optional live smoke checks skip only explicit HTTP 403/404 responses.
-Authentication, rate-limit, server, transport, and JSON failures fail the smoke check.
+HTTP, authentication, transport, and JSON errors fail the live test.

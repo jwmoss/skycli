@@ -65,7 +65,7 @@ func WithAuthScheme(s string) Option {
 func New(baseURL, token string, opts ...Option) *Client {
 	c := &Client{
 		baseURL:    strings.TrimRight(baseURL, "/"),
-		apiVersion: "2026-04-15",
+		apiVersion: "2026-08-05",
 		authScheme: "Bearer",
 		token:      token,
 		http:       &http.Client{Timeout: 30 * time.Second, CheckRedirect: checkRedirect},
@@ -296,6 +296,7 @@ func (c *Client) GetFrame(ctx context.Context, frameID int64) (*Frame, error) {
 }
 
 type Category struct {
+	raw        json.RawMessage
 	ID         string `json:"id"`
 	Attributes struct {
 		Color                 string `json:"color"`
@@ -322,20 +323,25 @@ func (c *Client) ListCategories(ctx context.Context, frameID int64) ([]Category,
 }
 
 type Chore struct {
+	raw        json.RawMessage
 	ID         string `json:"id"`
 	Attributes struct {
-		Summary        string   `json:"summary"`
-		Description    *string  `json:"description"`
-		Status         string   `json:"status"`
-		Start          string   `json:"start"`
-		RecurrenceSet  []string `json:"recurrence_set"`
-		RecurringUntil *string  `json:"recurring_until"`
-		CompletedOn    *string  `json:"completed_on"`
-		RewardPoints   *int     `json:"reward_points"`
-		EmojiIcon      *string  `json:"emoji_icon"`
-		UpForGrabs     bool     `json:"up_for_grabs"`
-		Recurring      bool     `json:"recurring"`
-		Position       int      `json:"position"`
+		Summary         string   `json:"summary"`
+		Description     *string  `json:"description"`
+		Status          string   `json:"status"`
+		Start           string   `json:"start"`
+		RecurrenceSet   []string `json:"recurrence_set"`
+		RecurringUntil  *string  `json:"recurring_until"`
+		CompletedOn     *string  `json:"completed_on"`
+		RewardPoints    *int     `json:"reward_points"`
+		EmojiIcon       *string  `json:"emoji_icon"`
+		UpForGrabs      bool     `json:"up_for_grabs"`
+		Recurring       bool     `json:"recurring"`
+		Position        int      `json:"position"`
+		Routine         bool     `json:"routine"`
+		StartTime       *string  `json:"start_time"`
+		RenewalInterval *int     `json:"renewal_interval"`
+		RenewalUnit     *string  `json:"renewal_unit"`
 	} `json:"attributes"`
 	Relationships struct {
 		Category struct {
@@ -363,6 +369,7 @@ type ChoreFilter struct {
 	IncludeLate       bool
 	IncludeUpForGrabs bool
 	OnlyUpForGrabs    bool
+	OnlyRoutines      bool
 	LinkedToProfile   bool
 }
 
@@ -400,10 +407,10 @@ func (c *Client) ListChores(ctx context.Context, frameID int64, f ChoreFilter) (
 	if err := json.Unmarshal(data, &env); err != nil {
 		return nil, err
 	}
-	if f.OnlyUpForGrabs {
+	if f.OnlyUpForGrabs || f.OnlyRoutines {
 		filtered := make([]Chore, 0, len(env.Data))
 		for _, ch := range env.Data {
-			if ch.Attributes.UpForGrabs {
+			if (!f.OnlyUpForGrabs || ch.Attributes.UpForGrabs) && (!f.OnlyRoutines || ch.Attributes.Routine) {
 				filtered = append(filtered, ch)
 			}
 		}
@@ -413,14 +420,18 @@ func (c *Client) ListChores(ctx context.Context, frameID int64, f ChoreFilter) (
 }
 
 type ChoreCreate struct {
-	Summary       string   `json:"summary"`
-	CategoryID    int64    `json:"category_id,omitempty"`
-	Start         string   `json:"start"`
-	RecurrenceSet []string `json:"recurrence_set,omitempty"`
-	UpForGrabs    bool     `json:"up_for_grabs"`
-	RewardPoints  *int     `json:"reward_points,omitempty"`
-	Description   string   `json:"description,omitempty"`
-	EmojiIcon     string   `json:"emoji_icon,omitempty"`
+	Summary         string   `json:"summary"`
+	CategoryID      int64    `json:"category_id,omitempty"`
+	Start           string   `json:"start"`
+	RecurrenceSet   []string `json:"recurrence_set,omitempty"`
+	UpForGrabs      bool     `json:"up_for_grabs"`
+	RewardPoints    *int     `json:"reward_points,omitempty"`
+	Description     string   `json:"description,omitempty"`
+	EmojiIcon       string   `json:"emoji_icon,omitempty"`
+	StartTime       *string  `json:"start_time,omitempty"`
+	RecurringUntil  *string  `json:"recurring_until,omitempty"`
+	RenewalInterval *int     `json:"renewal_interval,omitempty"`
+	RenewalUnit     *string  `json:"renewal_unit,omitempty"`
 }
 
 func (c *Client) CreateChore(ctx context.Context, frameID int64, in ChoreCreate) (*Chore, error) {
@@ -453,17 +464,26 @@ func (c *Client) CreateUpForGrabsChore(ctx context.Context, frameID int64, in Ch
 }
 
 type ChoreUpdate struct {
-	Summary      *string `json:"summary,omitempty"`
-	CategoryID   *int64  `json:"category_id,omitempty"`
-	Start        *string `json:"start,omitempty"`
-	Status       *string `json:"status,omitempty"`
-	RewardPoints *int    `json:"reward_points,omitempty"`
-	UpForGrabs   *bool   `json:"up_for_grabs,omitempty"`
+	Summary         *string   `json:"summary,omitempty"`
+	CategoryID      *int64    `json:"category_id,omitempty"`
+	Start           *string   `json:"start,omitempty"`
+	Status          *string   `json:"status,omitempty"`
+	RewardPoints    *int      `json:"reward_points,omitempty"`
+	UpForGrabs      *bool     `json:"up_for_grabs,omitempty"`
+	Description     *string   `json:"description,omitempty"`
+	EmojiIcon       *string   `json:"emoji_icon,omitempty"`
+	RecurrenceSet   *[]string `json:"recurrence_set,omitempty"`
+	StartTime       *string   `json:"start_time,omitempty"`
+	RecurringUntil  *string   `json:"recurring_until,omitempty"`
+	RenewalInterval *int      `json:"renewal_interval,omitempty"`
+	RenewalUnit     *string   `json:"renewal_unit,omitempty"`
+	ApplyTo         string    `json:"apply_to,omitempty"`
+	ApplyToProfiles string    `json:"apply_to_profiles,omitempty"`
+	CategoryIDs     *[]int    `json:"category_ids,omitempty"`
 }
 
-func (c *Client) UpdateChore(ctx context.Context, frameID int64, choreID string, in ChoreUpdate) (*Chore, error) {
-	baseID, _ := SplitChoreInstanceID(choreID)
-	data, err := c.Do(ctx, http.MethodPut, fmt.Sprintf("/api/frames/%d/chores/%s", frameID, baseID), nil, in)
+func (c *Client) UpdateChore(ctx context.Context, frameID int64, choreID string, in any) (*Chore, error) {
+	data, err := c.Do(ctx, http.MethodPut, fmt.Sprintf("/api/frames/%d/chores/%s", frameID, url.PathEscape(choreID)), nil, in)
 	if err != nil {
 		return nil, err
 	}
@@ -474,24 +494,35 @@ func (c *Client) UpdateChore(ctx context.Context, frameID int64, choreID string,
 	return &env.Data, nil
 }
 
-func (c *Client) DeleteChore(ctx context.Context, frameID, choreID int64, applyTo string) error {
+func (c *Client) DeleteChore(ctx context.Context, frameID int64, choreID any, applyTo string, applyToProfiles ...string) error {
 	q := url.Values{}
 	q.Set("apply_to", applyTo)
-	_, err := c.Do(ctx, http.MethodDelete, fmt.Sprintf("/api/frames/%d/chores/%d", frameID, choreID), q, nil)
+	if len(applyToProfiles) > 0 && applyToProfiles[0] != "" {
+		q.Set("apply_to_profiles", applyToProfiles[0])
+	}
+	_, err := c.Do(ctx, http.MethodDelete, fmt.Sprintf("/api/frames/%d/chores/%s", frameID, url.PathEscape(fmt.Sprint(choreID))), q, nil)
 	return err
 }
 
 type ChoreCompletion struct {
 	Status       string `json:"status"`
 	InstanceDate string `json:"instance_date,omitempty"`
+	InstanceTime string `json:"instance_time,omitempty"`
+	CategoryID   *int64 `json:"category_id,omitempty"`
+	CompletedOn  string `json:"completed_on,omitempty"`
 }
 
-func (c *Client) SetChoreCompletion(ctx context.Context, frameID int64, choreID string, status string) (*Chore, error) {
+func (c *Client) SetChoreCompletion(ctx context.Context, frameID int64, choreID string, status string, details ...ChoreCompletion) (*Chore, error) {
 	baseID, instanceDate := SplitChoreInstanceID(choreID)
-	data, err := c.Do(ctx, http.MethodPut, fmt.Sprintf("/api/frames/%d/chores/%s/completions", frameID, baseID), nil, ChoreCompletion{
-		Status:       status,
-		InstanceDate: instanceDate,
-	})
+	in := ChoreCompletion{}
+	if len(details) > 0 {
+		in = details[0]
+	}
+	in.Status = status
+	if in.InstanceDate == "" {
+		in.InstanceDate = instanceDate
+	}
+	data, err := c.Do(ctx, http.MethodPut, fmt.Sprintf("/api/frames/%d/chores/%s/completions", frameID, baseID), nil, in)
 	if err != nil {
 		return nil, err
 	}

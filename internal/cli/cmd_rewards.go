@@ -33,9 +33,37 @@ func runRewards(rc *runCtx, args []string) int {
 		return rewardsBulk(rc, args[1:])
 	case "points":
 		return rewardPointsCmd(rc, args[1:])
+	case "adjust-points":
+		return rewardsAdjustPoints(rc, args[1:])
 	default:
 		return usage(rc, fmt.Sprintf("unknown rewards subcommand: %s", args[0]))
 	}
+}
+
+func rewardsAdjustPoints(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("rewards adjust-points", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frame := fs.String("frame", "", "frame ID")
+	categories := fs.String("categories", "", "comma-separated profile category IDs")
+	points := fs.Int("points", 0, "stars to add; use a negative number to remove stars")
+	if err := fs.Parse(args); err != nil {
+		return flagError(rc, err)
+	}
+	ids, err := parseCSVInts(*categories, "categories")
+	if err != nil {
+		return usage(rc, err.Error())
+	}
+	if fs.NArg() != 0 || len(ids) == 0 || *points == 0 {
+		return usage(rc, "provide --categories and a nonzero --points value")
+	}
+	for _, id := range ids {
+		if id <= 0 {
+			return usage(rc, "category IDs must be positive")
+		}
+	}
+	return runFrameResourceJSON(rc, *frame, func(c *skylight.Client, f int64) (any, error) {
+		return c.AdjustRewardPoints(rc.ctx, f, ids, *points)
+	})
 }
 
 func rewardsList(rc *runCtx, args []string) int {

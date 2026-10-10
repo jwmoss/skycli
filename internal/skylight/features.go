@@ -63,6 +63,14 @@ func (c *Client) GetTaskNotificationSettings(
 	)
 }
 
+func (c *Client) UpdateEventNotificationSettings(ctx context.Context, frameID int64, payload map[string]any) (json.RawMessage, error) {
+	return c.Do(ctx, http.MethodPut, fmt.Sprintf("/api/frames/%d/event_notification_settings", frameID), nil, payload)
+}
+
+func (c *Client) UpdateTaskNotificationSettings(ctx context.Context, frameID int64, payload map[string]any) (json.RawMessage, error) {
+	return c.Do(ctx, http.MethodPatch, fmt.Sprintf("/api/frames/%d/task_notification_settings", frameID), nil, payload)
+}
+
 // ListMonthReviews returns the available monthly activity reviews.
 func (c *Client) ListMonthReviews(ctx context.Context) (json.RawMessage, error) {
 	return c.Do(ctx, http.MethodGet, "/api/month_in_reviews", nil, nil)

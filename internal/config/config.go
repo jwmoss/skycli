@@ -24,7 +24,7 @@ type Config struct {
 
 const (
 	DefaultBaseURL    = "https://app.ourskylight.com"
-	DefaultAPIVersion = "2026-04-15"
+	DefaultAPIVersion = "2026-08-05"
 	DefaultAuthScheme = "Bearer"
 )
 

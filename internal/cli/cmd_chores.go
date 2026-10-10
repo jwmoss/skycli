@@ -37,6 +37,10 @@ func runChores(rc *runCtx, args []string) int {
 		return choresSetCompletion(rc, args[1:], "complete")
 	case "skip":
 		return choresSetCompletion(rc, args[1:], "skipped")
+	case "undo", "unskip":
+		return choresSetCompletion(rc, args[1:], "pending")
+	case "move":
+		return choresMove(rc, args[1:])
 	case "delete":
 		return choresDelete(rc, args[1:])
 	case "bulk":
@@ -172,17 +176,22 @@ func choresCreate(rc *runCtx, args []string) int {
 	fs := flag.NewFlagSet("chores create", flag.ContinueOnError)
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID (default: config default)")
-	catStr := fs.String("category", "", "category ID (required)")
+	catStr := fs.String("category", "", "category ID (or use --categories)")
+	categories := fs.String("categories", "", "comma-separated category IDs for multiple profiles")
 	assigneeStr := fs.String("assignee-id", "", "alias for --category")
 	summary := fs.String("summary", "", "chore summary (required)")
 	title := fs.String("title", "", "alias for --summary")
 	start := fs.String("start", today(), "start date YYYY-MM-DD")
 	date := fs.String("date", "", "alias for --start")
-	recur := fs.String("recurrence", "daily", "shorthand (daily | weekly:MO,FR) or raw RRULE")
+	recur := fs.String("recurrence", "daily", "none, daily, weekly:MO,FR, or raw RRULE")
 	ufg := fs.Bool("up-for-grabs", false, "mark as up-for-grabs (claimable bonus chore)")
 	points := fs.Int("points", -1, "reward_points; omit to leave null")
 	desc := fs.String("description", "", "optional description")
 	emoji := fs.String("emoji", "", "optional emoji_icon")
+	startTime := fs.String("start-time", "", "due time HH:MM")
+	until := fs.String("recurring-until", "", "last recurrence date YYYY-MM-DD")
+	renewalInterval := fs.Int("renewal-interval", 0, "repeat interval after completion")
+	renewalUnit := fs.String("renewal-unit", "", "day | week | month | year")
 	if err := fs.Parse(args); err != nil {
 		return flagError(rc, err)
 	}
@@ -198,20 +207,29 @@ func choresCreate(rc *runCtx, args []string) int {
 	if strings.TrimSpace(*summary) == "" {
 		return usage(rc, "--summary is required")
 	}
-	if strings.TrimSpace(*catStr) == "" {
-		return usage(rc, "--category is required (find IDs with `skycli categories`)")
+	if strings.TrimSpace(*catStr) == "" && strings.TrimSpace(*categories) == "" {
+		return usage(rc, "--category or --categories is required (find IDs with `skycli categories`)")
+	}
+	if *catStr != "" && *categories != "" {
+		return usage(rc, "choose only one of --category or --categories")
 	}
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {
 		return fail(rc, err)
 	}
-	catID, err := parseInt64Flag(*catStr, "category")
-	if err != nil {
-		return fail(rc, err)
+	var catID int64
+	if *catStr != "" {
+		catID, err = parseInt64Flag(*catStr, "category")
+		if err != nil {
+			return fail(rc, err)
+		}
 	}
-	rule, err := normalizeRRULE(*recur)
-	if err != nil {
-		return fail(rc, err)
+	rule := ""
+	if *recur != "none" {
+		rule, err = normalizeRRULE(*recur)
+		if err != nil {
+			return fail(rc, err)
+		}
 	}
 	c, err := rc.client()
 	if err != nil {
@@ -226,9 +244,57 @@ func choresCreate(rc *runCtx, args []string) int {
 		Description:   *desc,
 		EmojiIcon:     *emoji,
 	}
+	if *recur == "none" {
+		in.RecurrenceSet = nil
+	}
 	if *points >= 0 {
 		p := *points
 		in.RewardPoints = &p
+	}
+	if *startTime != "" {
+		if err := validateTaskTime(*startTime); err != nil {
+			return usage(rc, err.Error())
+		}
+		in.StartTime = startTime
+	}
+	if *until != "" {
+		if _, err := time.Parse("2006-01-02", *until); err != nil {
+			return usage(rc, "--recurring-until must be YYYY-MM-DD")
+		}
+		in.RecurringUntil = until
+	}
+	if flagChanged(fs, "renewal-interval") || flagChanged(fs, "renewal-unit") {
+		if err := validateTaskRenewal(*renewalInterval, *renewalUnit); err != nil {
+			return usage(rc, err.Error())
+		}
+		if flagChanged(fs, "recurrence") {
+			return usage(rc, "choose recurrence or renewal after completion")
+		}
+		in.RenewalInterval = renewalInterval
+		in.RenewalUnit = renewalUnit
+		in.RecurrenceSet = nil
+	}
+	if *categories != "" {
+		ids, err := parseTaskCategories(*categories)
+		if err != nil {
+			return usage(rc, err.Error())
+		}
+		raw, err := json.Marshal(in)
+		if err != nil {
+			return fail(rc, err)
+		}
+		payload := map[string]any{}
+		decoder := json.NewDecoder(strings.NewReader(string(raw)))
+		decoder.UseNumber()
+		if err := decoder.Decode(&payload); err != nil {
+			return fail(rc, err)
+		}
+		payload["category_ids"] = ids
+		data, err := c.CreateMultipleChores(rc.ctx, frameID, payload)
+		if err != nil {
+			return fail(rc, err)
+		}
+		return printJSONBytes(rc, data)
 	}
 	chore, err := c.CreateChore(rc.ctx, frameID, in)
 	if err != nil {
@@ -310,6 +376,16 @@ func choresUpdate(rc *runCtx, args []string) int {
 	points := fs.Int("points", -1, "new reward_points (0+)")
 	ufg := fs.Bool("up-for-grabs", false, "set up_for_grabs=true")
 	notUFG := fs.Bool("not-up-for-grabs", false, "set up_for_grabs=false")
+	desc := fs.String("description", "", "new description; empty clears it")
+	emoji := fs.String("emoji", "", "new emoji; empty clears it")
+	recur := fs.String("recurrence", "", "daily, weekly:MO,FR, none, or raw RRULE")
+	startTime := fs.String("start-time", "", "due time HH:MM; empty clears it")
+	until := fs.String("recurring-until", "", "last recurrence date YYYY-MM-DD")
+	renewalInterval := fs.Int("renewal-interval", 0, "repeat interval after completion")
+	renewalUnit := fs.String("renewal-unit", "", "day | week | month | year")
+	categories := fs.String("categories", "", "comma-separated category IDs")
+	applyTo := fs.String("apply-to", "", "all | one | future")
+	applyProfiles := fs.String("apply-to-profiles", "", "one | all")
 	if err := fs.Parse(args); err != nil {
 		return flagError(rc, err)
 	}
@@ -370,6 +446,79 @@ func choresUpdate(rc *runCtx, args []string) int {
 		in.UpForGrabs = &v
 		changed = true
 	}
+	if flagChanged(fs, "description") {
+		in.Description = desc
+		changed = true
+	}
+	if flagChanged(fs, "emoji") {
+		in.EmojiIcon = emoji
+		changed = true
+	}
+	if flagChanged(fs, "recurrence") {
+		rules := []string{}
+		if *recur != "none" {
+			rule, err := normalizeRRULE(*recur)
+			if err != nil {
+				return usage(rc, err.Error())
+			}
+			rules = append(rules, rule)
+		}
+		in.RecurrenceSet = &rules
+		changed = true
+	}
+	if flagChanged(fs, "start-time") {
+		if *startTime != "" {
+			if err := validateTaskTime(*startTime); err != nil {
+				return usage(rc, err.Error())
+			}
+		}
+		in.StartTime = startTime
+		changed = true
+	}
+	if flagChanged(fs, "recurring-until") {
+		if *until != "" {
+			if _, err := time.Parse("2006-01-02", *until); err != nil {
+				return usage(rc, "--recurring-until must be YYYY-MM-DD")
+			}
+		}
+		in.RecurringUntil = until
+		changed = true
+	}
+	if flagChanged(fs, "renewal-interval") || flagChanged(fs, "renewal-unit") {
+		if err := validateTaskRenewal(*renewalInterval, *renewalUnit); err != nil {
+			return usage(rc, err.Error())
+		}
+		if flagChanged(fs, "recurrence") {
+			return usage(rc, "choose recurrence or renewal after completion")
+		}
+		in.RenewalInterval = renewalInterval
+		in.RenewalUnit = renewalUnit
+		rules := []string{}
+		in.RecurrenceSet = &rules
+		changed = true
+	}
+	if flagChanged(fs, "categories") {
+		if *catStr != "" {
+			return usage(rc, "choose only one of --category or --categories")
+		}
+		ids, err := parseTaskCategories(*categories)
+		if err != nil {
+			return usage(rc, err.Error())
+		}
+		in.CategoryIDs = &ids
+		changed = true
+	}
+	if *applyTo != "" {
+		scope, err := normalizeTaskScope(*applyTo)
+		if err != nil {
+			return usage(rc, err.Error())
+		}
+		in.ApplyTo = scope
+	}
+	if *applyProfiles != "" && *applyProfiles != "one" && *applyProfiles != "all" {
+		return usage(rc, "--apply-to-profiles must be one or all")
+	}
+	in.ApplyToProfiles = *applyProfiles
 	if !changed {
 		return usage(rc, "provide at least one update field")
 	}
@@ -377,7 +526,31 @@ func choresUpdate(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
-	chore, err := c.UpdateChore(rc.ctx, frameID, *idStr, in)
+	raw, err := json.Marshal(in)
+	if err != nil {
+		return fail(rc, err)
+	}
+	payload := map[string]any{}
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payload); err != nil {
+		return fail(rc, err)
+	}
+	if flagChanged(fs, "start-time") && *startTime == "" {
+		payload["start_time"] = nil
+	}
+	if flagChanged(fs, "recurring-until") && *until == "" {
+		payload["recurring_until"] = nil
+	}
+	if flagChanged(fs, "recurrence") {
+		payload["renewal_interval"] = nil
+		payload["renewal_unit"] = nil
+	}
+	if in.RenewalInterval != nil {
+		payload["recurrence_set"] = nil
+		payload["recurring_until"] = nil
+	}
+	chore, err := c.UpdateChore(rc.ctx, frameID, *idStr, payload)
 	if err != nil {
 		return fail(rc, err)
 	}
@@ -439,11 +612,19 @@ func choresSetCompletion(rc *runCtx, args []string, status string) int {
 	frameStr := fs.String("frame", "", "frame ID (default: config default)")
 	idStr := fs.String("id", "", "chore ID to update (required; composite instance IDs are accepted)")
 	choreIDStr := fs.String("chore-id", "", "alias for --id")
+	routineID := fs.String("routine-id", "", "alias for --id")
+	date := fs.String("date", "", "instance date YYYY-MM-DD; defaults to composite ID date")
+	instanceTime := fs.String("instance-time", "", "instance time HH:MM")
+	category := fs.String("category", "", "assignee category ID")
+	completedOn := fs.String("completed-on", "", "completion timestamp in RFC3339 format")
 	if err := fs.Parse(args); err != nil {
 		return flagError(rc, err)
 	}
 	if strings.TrimSpace(*idStr) == "" && strings.TrimSpace(*choreIDStr) != "" {
 		*idStr = *choreIDStr
+	}
+	if *idStr == "" {
+		*idStr = *routineID
 	}
 	if strings.TrimSpace(*idStr) == "" {
 		return usage(rc, "--id is required")
@@ -456,7 +637,33 @@ func choresSetCompletion(rc *runCtx, args []string, status string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
-	chore, err := c.SetChoreCompletion(rc.ctx, frameID, *idStr, status)
+	in := skylight.ChoreCompletion{InstanceDate: *date, InstanceTime: *instanceTime, CompletedOn: *completedOn}
+	if *date != "" {
+		if _, err := time.Parse("2006-01-02", *date); err != nil {
+			return usage(rc, "--date must be YYYY-MM-DD")
+		}
+	}
+	if *instanceTime != "" {
+		if err := validateTaskTime(*instanceTime); err != nil {
+			return usage(rc, err.Error())
+		}
+	}
+	if *completedOn != "" {
+		if status == "pending" {
+			return usage(rc, "--completed-on cannot be used with undo or unskip")
+		}
+		if _, err := time.Parse(time.RFC3339, *completedOn); err != nil {
+			return usage(rc, "--completed-on must be an RFC3339 timestamp")
+		}
+	}
+	if *category != "" {
+		id, err := parseInt64Flag(*category, "category")
+		if err != nil {
+			return usage(rc, err.Error())
+		}
+		in.CategoryID = &id
+	}
+	chore, err := c.SetChoreCompletion(rc.ctx, frameID, *idStr, status, in)
 	if err != nil {
 		return fail(rc, err)
 	}
@@ -476,18 +683,24 @@ func choresDelete(rc *runCtx, args []string) int {
 	frameStr := fs.String("frame", "", "frame ID (default: config default)")
 	idStr := fs.String("id", "", "chore ID to delete (required)")
 	choreIDStr := fs.String("chore-id", "", "alias for --id")
-	applyTo := fs.String("apply-to", "all", "all | this_only | this_and_following")
+	routineID := fs.String("routine-id", "", "alias for --id")
+	applyTo := fs.String("apply-to", "all", "all | one | future")
+	applyProfiles := fs.String("apply-to-profiles", "", "one | all")
 	if err := fs.Parse(args); err != nil {
 		return flagError(rc, err)
 	}
 	if strings.TrimSpace(*idStr) == "" && strings.TrimSpace(*choreIDStr) != "" {
 		*idStr = *choreIDStr
 	}
+	if *idStr == "" {
+		*idStr = *routineID
+	}
+	baseID, _ := skylight.SplitChoreInstanceID(*idStr)
 	frameID, err := resolveFrame(rc, *frameStr)
 	if err != nil {
 		return fail(rc, err)
 	}
-	choreID, err := parseInt64Flag(*idStr, "id")
+	_, err = parseInt64Flag(baseID, "id")
 	if err != nil {
 		return fail(rc, err)
 	}
@@ -495,13 +708,21 @@ func choresDelete(rc *runCtx, args []string) int {
 	if err != nil {
 		return fail(rc, err)
 	}
-	if err := c.DeleteChore(rc.ctx, frameID, choreID, *applyTo); err != nil {
+	scope, err := normalizeTaskScope(*applyTo)
+	if err != nil {
+		return usage(rc, err.Error())
+	}
+	*applyTo = scope
+	if *applyProfiles != "" && *applyProfiles != "one" && *applyProfiles != "all" {
+		return usage(rc, "--apply-to-profiles must be one or all")
+	}
+	if err := c.DeleteChore(rc.ctx, frameID, *idStr, *applyTo, *applyProfiles); err != nil {
 		return fail(rc, err)
 	}
 	if rc.g.asJSON {
-		_ = rc.out.JSON(map[string]any{"deleted": choreID, "apply_to": *applyTo})
+		_ = rc.out.JSON(map[string]any{"deleted": *idStr, "apply_to": *applyTo})
 	} else {
-		rc.out.Line("deleted chore %d (apply_to=%s)", choreID, *applyTo)
+		rc.out.Line("deleted chore %s (apply_to=%s)", *idStr, *applyTo)
 	}
 	return exitOK
 }
@@ -678,4 +899,73 @@ func normalizeRRULE(s string) (string, error) {
 		return "RRULE:FREQ=WEEKLY;BYDAY=" + days, nil
 	}
 	return "", fmt.Errorf("unrecognized recurrence %q (use daily, weekly:MO,FR, or a raw RRULE:...)", s)
+}
+
+func choresMove(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("chores move", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frame := fs.String("frame", "", "frame ID")
+	var id string
+	fs.StringVar(&id, "id", "", "task series or instance ID")
+	fs.StringVar(&id, "routine-id", "", "alias for --id")
+	before := fs.String("before", "", "place before this task series ID")
+	after := fs.String("after", "", "place after this task series ID")
+	if err := fs.Parse(args); err != nil {
+		return flagError(rc, err)
+	}
+	if id == "" {
+		return usage(rc, "--id is required")
+	}
+	if (*before == "") == (*after == "") {
+		return usage(rc, "provide exactly one of --before or --after")
+	}
+	baseID, _ := skylight.SplitChoreInstanceID(id)
+	if _, err := parseInt64Flag(baseID, "id"); err != nil {
+		return usage(rc, err.Error())
+	}
+	for name, value := range map[string]string{"before": *before, "after": *after} {
+		if value != "" {
+			if _, err := parseInt64Flag(value, name); err != nil {
+				return usage(rc, err.Error())
+			}
+			if value == baseID {
+				return usage(rc, "a task cannot move relative to itself")
+			}
+		}
+	}
+	return runFrameResourceJSON(rc, *frame, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.MoveChore(rc.ctx, frameID, id, *before, *after)
+	})
+}
+
+func validateTaskTime(value string) error {
+	if _, err := time.Parse("15:04", value); err != nil {
+		return fmt.Errorf("task time must be HH:MM")
+	}
+	return nil
+}
+
+func validateTaskRenewal(interval int, unit string) error {
+	if interval < 1 {
+		return fmt.Errorf("--renewal-interval must be positive")
+	}
+	switch unit {
+	case "day", "week", "month", "year":
+		return nil
+	default:
+		return fmt.Errorf("--renewal-unit must be day, week, month, or year")
+	}
+}
+
+func normalizeTaskScope(value string) (string, error) {
+	switch value {
+	case "all", "one", "future":
+		return value, nil
+	case "this_only":
+		return "one", nil
+	case "this_and_following":
+		return "future", nil
+	default:
+		return "", fmt.Errorf("--apply-to must be all, one, or future")
+	}
 }
