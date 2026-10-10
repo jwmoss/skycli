@@ -9,6 +9,7 @@ import (
 )
 
 type CalendarEvent struct {
+	raw        json.RawMessage
 	ID         string `json:"id"`
 	Attributes struct {
 		Summary     string `json:"summary"`
@@ -86,7 +87,11 @@ func (c *Client) UpdateCalendarEvent(ctx context.Context, frameID int64, eventID
 	return c.Do(ctx, http.MethodPut, fmt.Sprintf("/api/frames/%d/calendar_events/%s", frameID, eventID), nil, payload)
 }
 
-func (c *Client) DeleteCalendarEvent(ctx context.Context, frameID int64, eventID string) error {
-	_, err := c.Do(ctx, http.MethodDelete, fmt.Sprintf("/api/frames/%d/calendar_events/%s", frameID, eventID), nil, nil)
+func (c *Client) DeleteCalendarEvent(ctx context.Context, frameID int64, eventID string, applyTo ...string) error {
+	q := url.Values{}
+	if len(applyTo) > 0 && applyTo[0] != "" {
+		q.Set("apply_to", applyTo[0])
+	}
+	_, err := c.Do(ctx, http.MethodDelete, fmt.Sprintf("/api/frames/%d/calendar_events/%s", frameID, eventID), q, nil)
 	return err
 }

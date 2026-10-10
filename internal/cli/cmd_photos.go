@@ -25,6 +25,16 @@ func runPhotos(rc *runCtx, args []string) int {
 		return photosLikes(rc, args[1:])
 	case "comments":
 		return photosComments(rc, args[1:])
+	case "caption":
+		return photosCaption(rc, args[1:])
+	case "like", "unlike":
+		return photosLike(rc, args[1:], args[0] == "like")
+	case "comment":
+		return photosComment(rc, args[1:])
+	case "delete-comment":
+		return photosDeleteComment(rc, args[1:])
+	case "copy":
+		return photosCopy(rc, args[1:])
 	case "upload":
 		return photosUpload(rc, args[1:])
 	case "delete":
@@ -34,6 +44,119 @@ func runPhotos(rc *runCtx, args []string) int {
 	default:
 		return usage(rc, "unknown photos subcommand: "+args[0])
 	}
+}
+
+func photosCaption(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("photos caption", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frame := fs.String("frame", "", "frame ID")
+	message := fs.String("message-id", "", "photo message ID (required)")
+	caption := fs.String("caption", "", "caption (required; empty text clears it)")
+	if err := fs.Parse(args); err != nil {
+		return flagError(rc, err)
+	}
+	id, err := positiveMediaID(*message, "message-id")
+	if err != nil {
+		return usage(rc, err.Error())
+	}
+	if !flagChanged(fs, "caption") {
+		return usage(rc, "--caption is required; use empty text to clear it")
+	}
+	return runFrameResourceJSON(rc, *frame, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.UpdatePhotoCaption(rc.ctx, frameID, id, *caption)
+	})
+}
+
+func photosLike(rc *runCtx, args []string, liked bool) int {
+	name := "photos like"
+	if !liked {
+		name = "photos unlike"
+	}
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frame := fs.String("frame", "", "frame ID")
+	message := fs.String("message-id", "", "photo message ID (required)")
+	if err := fs.Parse(args); err != nil {
+		return flagError(rc, err)
+	}
+	id, err := positiveMediaID(*message, "message-id")
+	if err != nil {
+		return usage(rc, err.Error())
+	}
+	if !liked {
+		return runFrameResourceOK(rc, *frame, map[string]any{"message_id": id, "liked": false}, func(c *skylight.Client, frameID int64) error {
+			_, err := c.SetPhotoLike(rc.ctx, frameID, id, false)
+			return err
+		})
+	}
+	return runFrameResourceJSON(rc, *frame, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.SetPhotoLike(rc.ctx, frameID, id, liked)
+	})
+}
+
+func photosComment(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("photos comment", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frame := fs.String("frame", "", "frame ID")
+	message := fs.String("message-id", "", "photo message ID (required)")
+	text := fs.String("text", "", "comment text (required)")
+	if err := fs.Parse(args); err != nil {
+		return flagError(rc, err)
+	}
+	id, err := positiveMediaID(*message, "message-id")
+	if err != nil {
+		return usage(rc, err.Error())
+	}
+	if err := requireFlagValue(*text, "text"); err != nil {
+		return usage(rc, err.Error())
+	}
+	return runFrameResourceJSON(rc, *frame, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.CreatePhotoComment(rc.ctx, frameID, id, *text)
+	})
+}
+
+func photosDeleteComment(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("photos delete-comment", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frame := fs.String("frame", "", "frame ID")
+	message := fs.String("message-id", "", "photo message ID (required)")
+	comment := fs.String("comment-id", "", "comment ID (required)")
+	if err := fs.Parse(args); err != nil {
+		return flagError(rc, err)
+	}
+	messageID, err := positiveMediaID(*message, "message-id")
+	if err != nil {
+		return usage(rc, err.Error())
+	}
+	commentID, err := positiveMediaID(*comment, "comment-id")
+	if err != nil {
+		return usage(rc, err.Error())
+	}
+	return runFrameResourceOK(rc, *frame, map[string]any{"deleted": commentID}, func(c *skylight.Client, frameID int64) error {
+		return c.DeletePhotoComment(rc.ctx, frameID, messageID, commentID)
+	})
+}
+
+func photosCopy(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("photos copy", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frame := fs.String("frame", "", "source frame ID")
+	messages := fs.String("message-ids", "", "comma-separated photo message IDs (required)")
+	frames := fs.String("frame-ids", "", "comma-separated destination frame IDs (required)")
+	if err := fs.Parse(args); err != nil {
+		return flagError(rc, err)
+	}
+	messageIDs, err := positiveMediaIDs(*messages, "message-ids")
+	if err != nil {
+		return usage(rc, err.Error())
+	}
+	frameIDs, err := positiveMediaIDs(*frames, "frame-ids")
+	if err != nil {
+		return usage(rc, err.Error())
+	}
+	return runFrameResourceJSON(rc, *frame, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.CopyPhotoMessages(rc.ctx, frameID, messageIDs, frameIDs)
+	})
 }
 
 func photosShow(rc *runCtx, args []string) int {
@@ -115,6 +238,14 @@ func photosDelete(rc *runCtx, args []string) int {
 	messageIDs, err := parseCSVInts(*ids, "message-ids")
 	if err != nil {
 		return fail(rc, err)
+	}
+	if len(messageIDs) != len(strings.Split(*ids, ",")) {
+		return usage(rc, "--message-ids requires a comma-separated list of positive integer IDs")
+	}
+	for _, id := range messageIDs {
+		if id < 1 {
+			return usage(rc, "--message-ids requires positive integer IDs")
+		}
 	}
 	return runFrameResourceOK(rc, *frameStr, map[string]any{"deleted": messageIDs}, func(c *skylight.Client, frameID int64) error {
 		return c.DeletePhotoMessages(rc.ctx, frameID, messageIDs)

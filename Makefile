@@ -20,8 +20,8 @@ fmt:
 fmt-check:
 	test -z "$$(gofmt -l $(GOFILES))"
 
-test:
-	go test ./...
+test: build
+	python3 scripts/live-e2e.py
 
 vet:
 	go vet ./...
@@ -29,10 +29,10 @@ vet:
 tidy-check:
 	go mod tidy -diff
 
-ci: fmt-check tidy-check vet test build
+ci: fmt-check tidy-check vet build
 
 live-readonly-smoke: build
-	SKYCLI_BIN=./skycli scripts/live-readonly-smoke.sh
+	python3 scripts/live-e2e.py --readonly
 
 release-check:
 	$(GORELEASER) check

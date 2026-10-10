@@ -6,18 +6,18 @@ Public command pages are listed in CLI-help order.
 |---------|---------|
 | [`commands`](commands.md) | Print the command catalog for agents. |
 | [`auth`](auth.md) | Manage credentials and inspect auth state. |
-| [`frames`](frames.md) | List, inspect, and set the default frame. |
-| [`categories`](categories.md) | List household categories. |
+| [`frames`](frames.md) | Inspect frames, device settings, notifications, and nudges. |
+| [`categories`](categories.md) | Manage household profiles and labels. |
 | [`chores`](chores.md) | List and manage chores. |
 | [`rewards`](rewards.md) | List and manage rewards and point balances. |
 | [`calendar`](calendar.md) | List and manage events and calendar sources. |
 | [`lists`](lists.md) | List and manage Skylight lists and task-box items. |
 | [`grocery`](grocery.md) | Convenience commands for grocery lists. |
 | [`meals`](meals.md) | Read and manage meal categories, recipes, and sittings. |
-| [`photos`](photos.md) | List, upload, download, and delete photos. |
-| [`albums`](albums.md) | Read photo albums and their messages. |
-| [`routines`](routines.md) | List and manage routines when the private endpoint is available. |
-| [`sidekick`](sidekick.md) | Inspect Plus access and Sidekick auto-creation history. |
+| [`photos`](photos.md) | Manage photos, captions, likes, and comments. |
+| [`albums`](albums.md) | Manage photo albums and their messages. |
+| [`routines`](routines.md) | Manage routines through the task API. |
+| [`sidekick`](sidekick.md) | Inspect Sidekick access, submit JSON intents, and review drafts. |
 | [`bounties`](bounties.md) | Pair chores and rewards into bounty workflows. |
 | [`rotations`](rotations.md) | Create rotating chore schedules. |
 | [`status`](status.md) | Show a quick connected-frame overview. |

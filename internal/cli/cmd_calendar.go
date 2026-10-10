@@ -28,6 +28,8 @@ func runCalendar(rc *runCtx, args []string) int {
 		return calendarDelete(rc, args[1:])
 	case "sources":
 		return calendarSources(rc, args[1:])
+	case "create-source", "update-source", "delete-source", "default-source", "map-source", "update-account":
+		return calendarSourceWrite(rc, args[0], args[1:])
 	case "search":
 		return calendarSearch(rc, args[1:])
 	case "countdowns":
@@ -256,11 +258,10 @@ func calendarCreate(rc *runCtx, args []string, countdown bool) int {
 	allDay := fs.Bool("all-day", false, "all day event")
 	color := fs.String("color", "", "event color")
 	category := fs.String("category", "", "category ID")
-	defaultEventType := ""
-	if countdown {
-		defaultEventType = "countdown"
-	}
-	eventType := fs.String("event-type", defaultEventType, "event type")
+	eventType := fs.String("event-type", "", "event kind")
+	calendarID := fs.String("calendar-id", "", "destination calendar ID")
+	accountID := fs.String("calendar-account-id", "", "destination calendar account ID")
+	extra := calendarExtraFlags(fs)
 	body, bodyFile := bodyFlags(fs, rc)
 	if err := fs.Parse(args); err != nil {
 		return flagError(rc, err)
@@ -287,11 +288,16 @@ func calendarCreate(rc *runCtx, args []string, countdown bool) int {
 	if *color != "" {
 		payload["color"] = *color
 	}
-	if *category != "" {
-		payload["category_id"] = *category
+	if err := extra.apply(fs, payload, *category); err != nil {
+		return usage(rc, err.Error())
 	}
+	if countdown {
+		payload["countdown_enabled"] = true
+	}
+	addStringIfSet(fs, payload, "calendar-id", "calendar_id", *calendarID)
+	addStringIfSet(fs, payload, "calendar-account-id", "calendar_account_id", *accountID)
 	if *eventType != "" {
-		payload["event_type"] = *eventType
+		payload["kind"] = *eventType
 	}
 	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
 		return c.CreateCalendarEvent(rc.ctx, frameID, payload)
@@ -309,13 +315,21 @@ func calendarUpdate(rc *runCtx, args []string) int {
 	allDay := fs.Bool("all-day", false, "all day event")
 	color := fs.String("color", "", "event color")
 	category := fs.String("category", "", "category ID")
-	eventType := fs.String("event-type", "", "event type")
+	fs.String("event-type", "", "event kind (create only)")
+	applyTo := fs.String("apply-to", "", "recurrence edit scope: one, future, or all")
+	extra := calendarExtraFlags(fs)
 	body, bodyFile := bodyFlags(fs, rc)
 	if err := fs.Parse(args); err != nil {
 		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*eventID, "event-id"); err != nil {
 		return usage(rc, err.Error())
+	}
+	if flagChanged(fs, "event-type") {
+		return usage(rc, "--event-type is supported on calendar create only")
+	}
+	if *applyTo != "" && *applyTo != "one" && *applyTo != "future" && *applyTo != "all" {
+		return usage(rc, "--apply-to must be one, future, or all")
 	}
 	payload, err := readPayload(rc, *body, *bodyFile)
 	if err != nil {
@@ -326,8 +340,13 @@ func calendarUpdate(rc *runCtx, args []string) int {
 	addStringIfSet(fs, payload, "end-at", "ends_at", *endAt)
 	addBoolIfSet(fs, payload, "all-day", "all_day", *allDay)
 	addStringIfSet(fs, payload, "color", "color", *color)
-	addStringIfSet(fs, payload, "category", "category_id", *category)
-	addStringIfSet(fs, payload, "event-type", "event_type", *eventType)
+	if err := extra.apply(fs, payload, *category); err != nil {
+		return usage(rc, err.Error())
+	}
+	if len(payload) == 0 {
+		return usage(rc, "provide event fields to update")
+	}
+	addStringIfSet(fs, payload, "apply-to", "apply_to", *applyTo)
 	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
 		return c.UpdateCalendarEvent(rc.ctx, frameID, *eventID, payload)
 	})
@@ -338,13 +357,17 @@ func calendarDelete(rc *runCtx, args []string) int {
 	fs.SetOutput(rc.stderr)
 	frameStr := fs.String("frame", "", "frame ID")
 	eventID := fs.String("event-id", "", "event ID")
+	applyTo := fs.String("apply-to", "", "recurrence deletion scope: one, future, or all")
 	if err := fs.Parse(args); err != nil {
 		return flagError(rc, err)
 	}
 	if err := requireFlagValue(*eventID, "event-id"); err != nil {
 		return usage(rc, err.Error())
 	}
+	if *applyTo != "" && *applyTo != "one" && *applyTo != "future" && *applyTo != "all" {
+		return usage(rc, "--apply-to must be one, future, or all")
+	}
 	return runFrameResourceOK(rc, *frameStr, map[string]any{"deleted": *eventID}, func(c *skylight.Client, frameID int64) error {
-		return c.DeleteCalendarEvent(rc.ctx, frameID, *eventID)
+		return c.DeleteCalendarEvent(rc.ctx, frameID, *eventID, *applyTo)
 	})
 }

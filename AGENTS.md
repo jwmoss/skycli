@@ -15,6 +15,10 @@ Work style: concise, direct, repo-first. Prefer short bullets over long prose.
 
 - Fast gate: `make ci`.
 - Individual checks: `make fmt`, `make test`, `make vet`, `make build`.
+- Tests use real Skylight GET and POST requests through the built CLI.
+- Keep live tests simple. Use `make test` for reads plus one temporary-list create/read/delete cycle.
+- Limit test writes and cleanup to records created by that test run.
+- CI runs static checks and builds. Live tests require the configured account and frame.
 - Release config check: `make release-check`.
 - Local release dry run: `make release-snapshot`.
 - Homebrew verify after a release: `brew install --cask jwmoss/tap/skycli && skycli version`.
@@ -26,7 +30,7 @@ Work style: concise, direct, repo-first. Prefer short bullets over long prose.
 - Prefer adding focused command helpers over ad hoc JSON string handling.
 - Preserve machine-readable output: `--json` writes data to stdout; logs/errors stay on stderr.
 - Keep trace logging token-safe.
-- Bugs in auth, request construction, output formatting, or safety flags should get tests when practical.
+- Verify behavior through simple live end-to-end tests; keep unit tests and fake-server suites out of this repo.
 
 ## Agent CLI Usage
 
@@ -35,7 +39,7 @@ Work style: concise, direct, repo-first. Prefer short bullets over long prose.
 - Prefer `--readonly` for live account checks: `skycli --readonly frames list --json`.
 - Global flags such as `--json`, `--readonly`, and `--frame` may appear before or after commands, before a literal `--`.
 - Prefer placing `--dry-run` before the command when a subcommand also has its own `--dry-run` flag.
-- Use `make live-readonly-smoke` for real-account GET/read-only integration checks. Feature-specific private endpoints may be skipped when unavailable for the configured account.
+- Use `make live-readonly-smoke` for real-account GET checks without temporary writes.
 
 ## Live API Safety
 

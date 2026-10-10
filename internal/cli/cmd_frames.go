@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"time"
@@ -19,14 +20,34 @@ func runFrames(rc *runCtx, args []string) int {
 		return framesShow(rc, args[1:])
 	case "devices":
 		return framesDevices(rc, args[1:])
+	case "users":
+		return framesUsers(rc, args[1:])
+	case "device-config":
+		return framesDeviceConfig(rc, args[1:])
+	case "update-device-config":
+		return framesUpdateDeviceConfig(rc, args[1:])
+	case "create-nudge":
+		return framesWriteNudge(rc, args[1:], false)
+	case "update-nudge":
+		return framesWriteNudge(rc, args[1:], true)
+	case "delete-nudge":
+		return framesDeleteNudge(rc, args[1:])
 	case "device":
 		return framesDevice(rc, args[1:])
+	case "update-device":
+		return framesUpdateDevice(rc, args[1:])
+	case "sleep-device", "wake-device":
+		return framesDeviceSleep(rc, args[1:], args[0] == "sleep-device")
 	case "household-config":
 		return framesHouseholdConfig(rc, args[1:])
+	case "update-household-config":
+		return framesUpdateHouseholdConfig(rc, args[1:])
 	case "alarms":
 		return framesAlarms(rc, args[1:])
 	case "notifications":
 		return framesNotifications(rc, args[1:])
+	case "update-notifications":
+		return framesUpdateNotifications(rc, args[1:])
 	case "month-reviews":
 		return framesMonthReviews(rc, args[1:])
 	case "reminder-profile":
@@ -41,12 +62,162 @@ func runFrames(rc *runCtx, args []string) int {
 		return runResourceJSON(rc, func(c *skylight.Client) (any, error) {
 			return c.ListColors(rc.ctx)
 		})
+	case "hats":
+		return runResourceJSON(rc, func(c *skylight.Client) (any, error) {
+			return c.ListHatPacks(rc.ctx)
+		})
 	case "set-default":
 		return framesSetDefault(rc, args[1:])
 	default:
 		// allow `frames` to be aliased to show
 		return framesShow(rc, args)
 	}
+}
+
+func framesUpdateDevice(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("frames update-device", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frame := fs.String("frame", "", "frame ID")
+	deviceID := fs.String("device-id", "", "device ID (required)")
+	body, bodyFile := bodyFlags(fs, rc)
+	if err := fs.Parse(args); err != nil {
+		return flagError(rc, err)
+	}
+	id, err := parseInt64Flag(*deviceID, "device-id")
+	if err != nil || id < 1 {
+		return usage(rc, "--device-id requires a positive integer ID")
+	}
+	payload, err := settingsPayload(rc, *body, *bodyFile)
+	if err != nil {
+		return usage(rc, err.Error())
+	}
+	return runFrameResourceJSON(rc, *frame, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.UpdateFrameDevice(rc.ctx, frameID, id, payload)
+	})
+}
+
+func framesDeviceSleep(rc *runCtx, args []string, asleep bool) int {
+	name := "frames wake-device"
+	if asleep {
+		name = "frames sleep-device"
+	}
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frame := fs.String("frame", "", "frame ID")
+	deviceID := fs.String("device-id", "", "device ID (required)")
+	if err := fs.Parse(args); err != nil {
+		return flagError(rc, err)
+	}
+	id, err := parseInt64Flag(*deviceID, "device-id")
+	if err != nil || id < 1 {
+		return usage(rc, "--device-id requires a positive integer ID")
+	}
+	return runFrameResourceOK(rc, *frame, map[string]any{"device_id": id, "sleeping": asleep}, func(c *skylight.Client, frameID int64) error {
+		_, err := c.SetDeviceSleep(rc.ctx, frameID, id, asleep)
+		return err
+	})
+}
+
+func framesUpdateHouseholdConfig(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("frames update-household-config", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frame := fs.String("frame", "", "frame ID")
+	body, bodyFile := bodyFlags(fs, rc)
+	if err := fs.Parse(args); err != nil {
+		return flagError(rc, err)
+	}
+	payload, err := settingsPayload(rc, *body, *bodyFile)
+	if err != nil {
+		return usage(rc, err.Error())
+	}
+	return runFrameResourceJSON(rc, *frame, func(c *skylight.Client, frameID int64) (any, error) {
+		return c.UpdateHouseholdConfig(rc.ctx, frameID, payload)
+	})
+}
+
+func settingsPayload(rc *runCtx, body, bodyFile string) (map[string]any, error) {
+	payload, err := readPayload(rc, body, bodyFile)
+	if err != nil {
+		return nil, err
+	}
+	if len(payload) == 0 {
+		return nil, fmt.Errorf("provide a non-empty JSON object with --body or --body-file")
+	}
+	return payload, nil
+}
+
+func framesUpdateNotifications(rc *runCtx, args []string) int {
+	fs := flag.NewFlagSet("frames update-notifications", flag.ContinueOnError)
+	fs.SetOutput(rc.stderr)
+	frame := fs.String("frame", "", "frame ID")
+	kind := fs.String("type", "", "notification type: event or task")
+	onTime := fs.Bool("on-time", false, "event notification at the start time")
+	early := fs.Bool("early", false, "event notification before the start time")
+	minutes := fs.Int("early-minutes-before", 0, "minutes before an event")
+	body, bodyFile := bodyFlags(fs, rc)
+	if err := fs.Parse(args); err != nil {
+		return flagError(rc, err)
+	}
+	if *kind != "event" && *kind != "task" {
+		return usage(rc, "--type must be event or task")
+	}
+	if *kind == "task" && (flagChanged(fs, "on-time") || flagChanged(fs, "early") || flagChanged(fs, "early-minutes-before")) {
+		return usage(rc, "event notification flags require --type event")
+	}
+	payload, err := readPayload(rc, *body, *bodyFile)
+	if err != nil {
+		return usage(rc, err.Error())
+	}
+	addBoolIfSet(fs, payload, "on-time", "on_time", *onTime)
+	addBoolIfSet(fs, payload, "early", "early", *early)
+	addIntIfSet(fs, payload, "early-minutes-before", "early_minutes_before", *minutes)
+	if len(payload) == 0 {
+		return usage(rc, "provide notification fields or a non-empty JSON body")
+	}
+	if *kind == "event" {
+		for _, key := range []string{"on_time", "early"} {
+			if value, ok := payload[key]; ok {
+				if _, ok := value.(bool); !ok {
+					return usage(rc, key+" must be a boolean")
+				}
+			}
+		}
+		if value, ok := payload["early_minutes_before"]; ok {
+			var amount int64
+			var err error
+			switch value := value.(type) {
+			case int:
+				amount = int64(value)
+			case json.Number:
+				amount, err = value.Int64()
+			default:
+				err = fmt.Errorf("not an integer")
+			}
+			if err != nil || amount < 0 {
+				return usage(rc, "early_minutes_before must be a non-negative integer")
+			}
+		}
+	} else {
+		for _, key := range []string{"task_due", "task_completed"} {
+			if value, ok := payload[key]; ok {
+				setting, ok := value.(map[string]any)
+				if !ok {
+					return usage(rc, key+" must be a JSON object")
+				}
+				if enabled, ok := setting["enabled"]; ok {
+					if _, ok := enabled.(bool); !ok {
+						return usage(rc, key+".enabled must be a boolean")
+					}
+				}
+			}
+		}
+	}
+	return runFrameResourceJSON(rc, *frame, func(c *skylight.Client, frameID int64) (any, error) {
+		if *kind == "event" {
+			return c.UpdateEventNotificationSettings(rc.ctx, frameID, payload)
+		}
+		return c.UpdateTaskNotificationSettings(rc.ctx, frameID, payload)
+	})
 }
 
 func framesNotifications(rc *runCtx, args []string) int {

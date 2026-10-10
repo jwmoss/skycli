@@ -17,7 +17,7 @@ Shows or updates local skycli configuration.
 ```bash
 skycli config show --json
 skycli config get base_url --json
-skycli config set api_version 2026-04-15 --json
+skycli config set api_version 2026-08-05 --json
 skycli config unset default_frame_id --json
 ```
 

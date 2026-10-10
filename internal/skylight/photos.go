@@ -37,9 +37,37 @@ func (c *Client) ListPhotoMessageComments(ctx context.Context, frameID int64, me
 }
 
 func (c *Client) DeletePhotoMessages(ctx context.Context, frameID int64, messageIDs []int) error {
-	body := map[string]any{"message_ids": messageIDs}
-	_, err := c.Do(ctx, http.MethodDelete, fmt.Sprintf("/api/frames/%d/messages/destroy_multiple", frameID), nil, body)
+	q := url.Values{}
+	for _, id := range messageIDs {
+		q.Add("message_ids[]", fmt.Sprintf("%d", id))
+	}
+	_, err := c.Do(ctx, http.MethodDelete, fmt.Sprintf("/api/frames/%d/messages/destroy_multiple", frameID), q, nil)
 	return err
+}
+
+func (c *Client) UpdatePhotoCaption(ctx context.Context, frameID, messageID int64, caption string) (json.RawMessage, error) {
+	return c.Do(ctx, http.MethodPut, fmt.Sprintf("/api/frames/%d/messages/%d/caption", frameID, messageID), nil, map[string]any{"caption": caption})
+}
+
+func (c *Client) SetPhotoLike(ctx context.Context, frameID, messageID int64, liked bool) (json.RawMessage, error) {
+	method := http.MethodPost
+	if !liked {
+		method = http.MethodDelete
+	}
+	return c.Do(ctx, method, fmt.Sprintf("/api/frames/%d/messages/%d/likes", frameID, messageID), nil, nil)
+}
+
+func (c *Client) CreatePhotoComment(ctx context.Context, frameID, messageID int64, text string) (json.RawMessage, error) {
+	return c.Do(ctx, http.MethodPost, fmt.Sprintf("/api/frames/%d/messages/%d/comments", frameID, messageID), nil, map[string]any{"body": text})
+}
+
+func (c *Client) DeletePhotoComment(ctx context.Context, frameID, messageID, commentID int64) error {
+	_, err := c.Do(ctx, http.MethodDelete, fmt.Sprintf("/api/frames/%d/messages/%d/comments/%d", frameID, messageID, commentID), nil, nil)
+	return err
+}
+
+func (c *Client) CopyPhotoMessages(ctx context.Context, frameID int64, messageIDs, newFrameIDs []int64) (json.RawMessage, error) {
+	return c.Do(ctx, http.MethodPost, fmt.Sprintf("/api/frames/%d/copy_to_frames", frameID), nil, map[string]any{"message_ids": messageIDs, "new_frame_ids": newFrameIDs})
 }
 
 func (c *Client) CreatePhotoUpload(ctx context.Context, extension string, frameIDs []string, caption string) (*PhotoUploadTarget, error) {

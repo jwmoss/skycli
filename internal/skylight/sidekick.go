@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 )
 
 type PlusAccess struct {
@@ -12,6 +13,60 @@ type PlusAccess struct {
 	AssistantTrialEligible     bool `json:"assistant_trial_eligible"`
 	ActiveCalendarPlus         bool `json:"active_calendar_plus"`
 	ActiveSubscriptionCount    int  `json:"active_subscription_count"`
+}
+
+func (c *Client) GetAutoCreationIntent(ctx context.Context, frameID int64, id string) (json.RawMessage, error) {
+	return c.Do(ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/auto_creation_intents/%s", frameID, url.PathEscape(id)), nil, nil)
+}
+
+func (c *Client) CreateAutoCreationIntent(ctx context.Context, frameID int64, payload map[string]any) (json.RawMessage, error) {
+	return c.Do(ctx, http.MethodPost, fmt.Sprintf("/api/frames/%d/auto_creation_intents", frameID), nil, payload)
+}
+
+func (c *Client) UndoAutoCreationIntent(ctx context.Context, frameID int64, id string) (json.RawMessage, error) {
+	return c.Do(ctx, http.MethodPost, fmt.Sprintf("/api/frames/%d/auto_creation_intents/%s/undo", frameID, url.PathEscape(id)), nil, nil)
+}
+
+func (c *Client) GetAutoCreationItems(ctx context.Context, frameID int64, id string) (json.RawMessage, error) {
+	return c.Do(ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/auto_creation_intents/%s/created_items", frameID, url.PathEscape(id)), nil, nil)
+}
+
+func autoCreationDraftPath(frameID int64, id, kind string) (string, error) {
+	resources := map[string]string{"events": "created_events", "recipes": "created_recipes", "meals": "created_meals", "lists": "created_lists", "list-items": "created_list_items"}
+	resource, ok := resources[kind]
+	if !ok {
+		return "", fmt.Errorf("kind must be events, recipes, meals, lists, or list-items")
+	}
+	return fmt.Sprintf("/api/frames/%d/auto_creation_intents/%s/%s", frameID, url.PathEscape(id), resource), nil
+}
+
+func (c *Client) ListAutoCreationDrafts(ctx context.Context, frameID int64, id, kind, timezone string) (json.RawMessage, error) {
+	path, err := autoCreationDraftPath(frameID, id, kind)
+	if err != nil {
+		return nil, err
+	}
+	q := url.Values{}
+	switch kind {
+	case "events":
+		q.Set("include", "categories")
+		q.Set("timezone", timezone)
+	case "recipes":
+		q.Set("include", "meal_category")
+	case "meals":
+		q.Set("include", "meal_category,meal_recipe")
+	}
+	return c.Do(ctx, http.MethodGet, path, q, nil)
+}
+
+func (c *Client) ApproveAutoCreationDrafts(ctx context.Context, frameID int64, id, kind string, ids []string) (json.RawMessage, error) {
+	path, err := autoCreationDraftPath(frameID, id, kind)
+	if err != nil {
+		return nil, err
+	}
+	if kind == "lists" {
+		return nil, fmt.Errorf("approve list-items, not lists")
+	}
+	return c.Do(ctx, http.MethodPost, path+"/bulk_approve", nil, map[string]any{"ids": ids})
 }
 
 func (c *Client) GetPlusAccess(ctx context.Context) (*PlusAccess, error) {

@@ -16,6 +16,12 @@ Lists and manages calendar events and source calendars.
 | `create-countdown` | yes | Create a countdown event. |
 | `update` | yes | Update an event. |
 | `delete` | yes | Delete an event. |
+| `create-source` | yes | Create a source from JSON attributes. |
+| `update-source` | yes | Update source attributes. |
+| `delete-source` | yes | Remove a source. |
+| `default-source` | yes | Set the default source for new events. |
+| `map-source` | yes | Update source-to-profile mappings. |
+| `update-account` | yes | Select active calendars in a connected account. |
 
 ## Examples
 
@@ -38,3 +44,33 @@ include related categories; pass `--timezone` to match the frame's timezone.
 
 Weekly views group timed events in the selected frame timezone.
 All-day dates stay unchanged. Missing frame timezone data falls back to the host timezone.
+
+## Event fields
+
+Create/update accept `--categories 7,8`, `--recurrence`, `--invite-emails`,
+`--description`, `--location`, `--emoji`, `--timezone`, and `--countdown=true|false`.
+`--category` selects one profile. Do not combine it with `--categories`.
+Use `--categories ''` or `--invite-emails ''` to clear those lists.
+
+Recurrence accepts `daily`, `weekly:MO,FR`, a raw RRULE, or `none`.
+The flag replaces the recurrence set. Use a complete `rrule` array through `--body` to retain EXDATE/RDATE exceptions.
+Update/delete accept `--apply-to one|future|all` for recurring events.
+Create accepts `--calendar-id` and `--calendar-account-id` for a sync destination.
+`--event-type` maps to the app's `kind` field on create only.
+The legacy `--color` field remains a passthrough; the audited app does not send it.
+Use `--body` or `--body-file` for other verified fields.
+
+Countdown creation sets `countdown_enabled=true` and `all_day=true`.
+Weekly JSON retains recurrence, profile relationships, and other upstream metadata while it converts timestamps.
+
+## Source calendars
+
+Use `sources --json` to inspect current IDs and attributes.
+`create-source` accepts flat attributes through `--body` or `--body-file`; the client adds the required `attributes` wrapper.
+`update-source` sends flat updates and requires `--source-id`.
+`delete-source` and `default-source` also require `--source-id`.
+
+`map-source --source-id ID --body-file mapping.json` requires a `categorizations` field.
+`update-account --account-id ID --body-file calendars.json` requires an `active_calendars` field.
+Use structures from the current account and app contract; the CLI does not invent provider-specific fields.
+OAuth connection/reconnection and provider consent remain in the Skylight app.

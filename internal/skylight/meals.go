@@ -54,6 +54,10 @@ func (c *Client) ListMealCategories(ctx context.Context, frameID int64) (json.Ra
 	return c.Do(ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/meals/categories", frameID), nil, nil)
 }
 
+func (c *Client) UpdateMealCategory(ctx context.Context, frameID, categoryID int64, payload map[string]any) (json.RawMessage, error) {
+	return c.Do(ctx, http.MethodPatch, fmt.Sprintf("/api/frames/%d/meals/categories/%d", frameID, categoryID), nil, payload)
+}
+
 func (c *Client) ListRecipes(ctx context.Context, frameID int64) (*Collection[Recipe], error) {
 	raw, err := c.Do(ctx, http.MethodGet, fmt.Sprintf("/api/frames/%d/meals/recipes", frameID), nil, nil)
 	if err != nil {
@@ -96,6 +100,11 @@ func (c *Client) ListMealSittings(ctx context.Context, frameID int64, filter Mea
 
 func (c *Client) CreateMealSitting(ctx context.Context, frameID int64, payload map[string]any) (json.RawMessage, error) {
 	return c.Do(ctx, http.MethodPost, fmt.Sprintf("/api/frames/%d/meals/sittings", frameID), nil, payload)
+}
+
+func (c *Client) UpdateMealSitting(ctx context.Context, frameID, sittingID int64, instanceDate, applyTo string, payload map[string]any) (json.RawMessage, error) {
+	q := url.Values{"apply_to": {applyTo}, "include": {"meal_category,meal_recipe"}}
+	return c.Do(ctx, http.MethodPatch, fmt.Sprintf("/api/frames/%d/meals/sittings/%d/instances/%s", frameID, sittingID, url.PathEscape(instanceDate)), q, payload)
 }
 
 func (c *Client) DeleteMealSitting(ctx context.Context, frameID int64, sittingID, date string) error {

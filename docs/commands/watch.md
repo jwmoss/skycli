@@ -12,7 +12,7 @@ skycli --readonly watch --once --json
 
 ## Output
 
-Streaming watch mode may emit multiple event records. `watch --once --json` emits one bounded JSON status document and is used by the integration smoke test.
+Streaming watch mode may emit multiple event records. `watch --once --json` emits one bounded JSON status document for scripts.
 
 ## Safety
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"strings"
 
 	"github.com/jwmoss/skycli/internal/skylight"
 )
@@ -38,7 +39,11 @@ func runLists(rc *runCtx, args []string) int {
 	case "task-box", "task-box-items":
 		return taskBoxItemsList(rc, args[1:])
 	case "task-box-item":
-		return taskBoxItemCreate(rc, args[1:])
+		return taskBoxItemWrite(rc, "create", args[1:])
+	case "update-task-box-item":
+		return taskBoxItemWrite(rc, "update", args[1:])
+	case "delete-task-box-item":
+		return taskBoxItemWrite(rc, "delete", args[1:])
 	default:
 		return usage(rc, "unknown lists subcommand: "+args[0])
 	}
@@ -388,20 +393,49 @@ func taskBoxItemsList(rc *runCtx, args []string) int {
 	})
 }
 
-func taskBoxItemCreate(rc *runCtx, args []string) int {
+func taskBoxItemWrite(rc *runCtx, operation string, args []string) int {
 	fs := flag.NewFlagSet("lists task-box-item", flag.ContinueOnError)
 	fs.SetOutput(rc.stderr)
-	frameStr := fs.String("frame", "", "frame ID")
-	title := fs.String("title", "", "task box item title")
+	frame := fs.String("frame", "", "frame ID")
+	id := fs.String("item-id", "", "Task Box item ID")
+	title := fs.String("title", "", "task summary")
+	body, bodyFile := bodyFlags(fs, rc)
 	if err := fs.Parse(args); err != nil {
 		return flagError(rc, err)
 	}
-	if err := requireFlagValue(*title, "title"); err != nil {
+	if fs.NArg() != 0 {
+		return usage(rc, "unexpected positional arguments")
+	}
+	if operation != "create" {
+		if value, err := parseInt64Flag(*id, "item-id"); err != nil || value <= 0 {
+			return usage(rc, "--item-id must be a positive integer")
+		}
+	}
+	if operation == "delete" {
+		return runFrameResourceOK(rc, *frame, map[string]any{"deleted": *id}, func(c *skylight.Client, f int64) error { return c.DeleteTaskBoxItem(rc.ctx, f, *id) })
+	}
+	payload, err := readPayload(rc, *body, *bodyFile)
+	if err != nil {
 		return usage(rc, err.Error())
 	}
-	body := map[string]any{"task_box_item": map[string]any{"title": *title}}
-	return runFrameResourceJSON(rc, *frameStr, func(c *skylight.Client, frameID int64) (any, error) {
-		return c.CreateTaskBoxItem(rc.ctx, frameID, body)
+	addStringIfSet(fs, payload, "title", "summary", *title)
+	if operation == "create" {
+		value, _ := payload["summary"].(string)
+		if strings.TrimSpace(value) == "" {
+			return usage(rc, "--title or body summary is required")
+		}
+	}
+	if len(payload) == 0 {
+		return usage(rc, "provide at least one update field")
+	}
+	if operation == "update" {
+		payload["id"] = *id
+	}
+	return runFrameResourceJSON(rc, *frame, func(c *skylight.Client, f int64) (any, error) {
+		if operation == "update" {
+			return c.UpdateTaskBoxItem(rc.ctx, f, *id, payload)
+		}
+		return c.CreateTaskBoxItem(rc.ctx, f, payload)
 	})
 }
 
