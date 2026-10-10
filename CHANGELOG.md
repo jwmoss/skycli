@@ -24,6 +24,7 @@ All notable changes to `skycli` will be documented in this file.
 
 ### Fixed
 
+- Require Go 1.27.2 so CI and release builds include the current standard-library security fixes.
 - Match the shipped app's `2026-08-05` API version by default.
 - Route routines through chores instead of the unavailable routines endpoint.
 - Preserve occurrence IDs and edit scopes for recurring tasks.
