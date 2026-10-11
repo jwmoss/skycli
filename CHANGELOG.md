@@ -4,6 +4,8 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
+## [0.3.0] - 2026-10-10
+
 ### Changed
 
 - Replace Go unit/fixture tests and the Node fake-server suite with simple live end-to-end tests.
