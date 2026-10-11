@@ -5,6 +5,7 @@ Prints build version metadata.
 ## Examples
 
 ```bash
+skycli --version
 skycli version
 skycli version --json
 ```

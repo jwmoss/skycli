@@ -9,8 +9,9 @@ import (
 
 func runDoctor(rc *runCtx, args []string) int {
 	if len(args) > 0 {
-		return usage(rc, "skycli --doctor takes no arguments")
+		return usage(rc, "skycli doctor takes no arguments")
 	}
+	rc.g.readOnly = true
 	checks := []map[string]any{}
 
 	_, _, tokenErr := rc.requireToken()

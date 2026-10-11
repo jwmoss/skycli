@@ -11,12 +11,30 @@ import uuid
 from datetime import date, timedelta
 
 
+def check_cli_contracts(cli):
+    for timeout in ("0s", "-1s"):
+        result = subprocess.run(
+            [*cli, "--timeout", timeout, "version"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 2 or "--timeout must be positive" not in result.stderr:
+            raise RuntimeError(f"Invalid timeout {timeout} did not produce a usage error")
+    result = subprocess.run(
+        [*cli, "--version", "--json"],
+        capture_output=True, text=True, timeout=10,
+    )
+    if result.returncode or not json.loads(result.stdout).get("version"):
+        raise RuntimeError("--version did not return build metadata")
+    print("PASS local CLI version and timeout contracts", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--readonly", action="store_true", help="run GET checks only")
     parser.add_argument("--frame", default=os.environ.get("SKYLIGHT_FRAME_ID"))
     args = parser.parse_args()
     cli = shlex.split(os.environ.get("SKYCLI_BIN", "./skycli"))
+    check_cli_contracts(cli)
 
     def call(*command):
         result = subprocess.run(
@@ -38,6 +56,10 @@ def main():
         raise RuntimeError("Set a default frame or pass --frame ID")
     cli += ["--frame", frame]
     print(f"Live Skylight tests: frame {frame}", flush=True)
+
+    if call("--readonly", "doctor").get("ok") is not True:
+        raise RuntimeError("Doctor did not confirm account connectivity")
+    print("PASS GET doctor", flush=True)
 
     today = date.today()
     for command in [("categories",), ("chores", "list"), ("routines", "list"),

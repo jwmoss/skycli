@@ -74,7 +74,7 @@ The cask supplies macOS and Linux binaries. Windows users can use the release ZI
 skycli auth login --email you@example.com
 skycli frames list                   # find your frame ID
 skycli frames set-default 5312425
-skycli --doctor                      # verify token + connectivity
+skycli doctor                        # verify token + connectivity
 skycli categories                    # find category/person IDs
 skycli chores list --json
 ```
@@ -108,7 +108,7 @@ skycli --json
 
 ## Authentication
 
-Use one of the auth commands, then verify the account with `skycli --doctor`.
+Use one of the auth commands, then verify the account with `skycli doctor`.
 
 ```bash
 skycli auth login --email you@example.com
@@ -125,10 +125,11 @@ and non-interactive usage.
 | Flag             | Default | Notes |
 |------------------|---------|-------|
 | `--config PATH`  | `$XDG_CONFIG_HOME/skycli/config.json` | Override config path |
+| `--version`      | off     | Print version metadata and exit |
 | `--doctor`       | off     | Run readonly token/API connectivity checks and exit |
 | `--json`         | off     | Emit JSON to stdout |
 | `--plain`        | off     | Emit stable TSV/plain output where available |
-| `--timeout DUR`  | 30s     | HTTP timeout |
+| `--timeout DUR`  | 30s     | Positive HTTP timeout |
 | `--trace-http`   | off     | Log every request to stderr |
 | `--dry-run`      | off     | Refuse non-GET HTTP calls and configuration or credential changes |
 | `--readonly`     | off     | Block mutating commands and refuse non-GET HTTP calls |

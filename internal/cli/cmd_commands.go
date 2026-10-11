@@ -66,7 +66,7 @@ func buildCommandCatalog() commandCatalogDoc {
 		OutputContract: map[string]string{
 			"stdout":       "Primary command data only. In --json mode stdout is one JSON document unless a command intentionally streams events.",
 			"stderr":       "Diagnostics, prompts, warnings, trace logs, and human guidance.",
-			"doctor_flag":  "Use skycli --doctor for readonly token/API connectivity checks.",
+			"doctor_flag":  "Use skycli doctor or skycli --doctor for readonly token/API connectivity checks.",
 			"json_flag":    "Global flag. It may appear before or after commands, before a literal --.",
 			"plain_flag":   "Global flag for stable TSV/plain output where available. Mutually exclusive with --json.",
 			"exit_codes":   "0 success, 1 runtime/API failure, 2 invalid usage.",
@@ -75,6 +75,7 @@ func buildCommandCatalog() commandCatalogDoc {
 			"raw_endpoint": "raw and raw API-backed commands may return Skylight's full JSON:API envelope by design.",
 		},
 		GlobalFlags: []flagDoc{
+			{Name: "--version", Summary: "Print version metadata and exit."},
 			{Name: "--doctor", Summary: "Run readonly token/API connectivity checks and exit."},
 			{Name: "--json", Summary: "Emit JSON to stdout."},
 			{Name: "--plain", Summary: "Emit stable TSV/plain output where available."},
@@ -82,7 +83,7 @@ func buildCommandCatalog() commandCatalogDoc {
 			{Name: "--dry-run", Summary: "Refuse all non-GET HTTP calls."},
 			{Name: "--frame", Value: "id", Summary: "Override the default frame ID."},
 			{Name: "--config", Value: "path", Summary: "Use a specific config file."},
-			{Name: "--timeout", Value: "duration", Summary: "Set HTTP timeout."},
+			{Name: "--timeout", Value: "duration", Summary: "Set a positive HTTP timeout."},
 			{Name: "--token", Value: "token", Summary: "Override the access token for this run."},
 			{Name: "--trace-http", Summary: "Log token-safe HTTP request traces to stderr."},
 			{Name: "--allow-commands", Value: "prefixes", Summary: "Allow only comma-separated command prefixes."},
@@ -99,6 +100,7 @@ func buildCommandCatalog() commandCatalogDoc {
 			"SKYCLI_FILE_SECRET_KEY",
 		},
 		Commands: []catalogCommandDoc{
+			{Name: "doctor", Summary: "Verify token and API connectivity without writes.", Docs: "docs/commands/doctor.md", ReadOnly: true, Examples: []string{"skycli doctor --json"}},
 			{
 				Name:     "commands",
 				Summary:  "Print the command catalog for agents.",
