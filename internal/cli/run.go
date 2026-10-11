@@ -30,24 +30,26 @@ var (
 )
 
 type globals struct {
-	configPath string
-	asJSON     bool
-	plain      bool
-	doctor     bool
-	timeout    time.Duration
-	traceHTTP  bool
-	dryRun     bool
-	readOnly   bool
-	allow      string
-	deny       string
-	token      string // override
-	frame      int64  // override default frame
+	configPath  string
+	asJSON      bool
+	plain       bool
+	doctor      bool
+	showVersion bool
+	timeout     time.Duration
+	traceHTTP   bool
+	dryRun      bool
+	readOnly    bool
+	allow       string
+	deny        string
+	token       string // override
+	frame       int64  // override default frame
 }
 
 func (g *globals) register(fs *flag.FlagSet) {
 	fs.StringVar(&g.configPath, "config", "", "path to config.json (default: $XDG_CONFIG_HOME/skycli/config.json)")
 	fs.BoolVar(&g.asJSON, "json", false, "emit JSON to stdout (default: human-readable table/text)")
 	fs.BoolVar(&g.plain, "plain", false, "emit stable TSV/plain output where available")
+	fs.BoolVar(&g.showVersion, "version", false, "print version and exit")
 	fs.BoolVar(&g.doctor, "doctor", false, "run readonly token/API connectivity checks and exit")
 	fs.DurationVar(&g.timeout, "timeout", 30*time.Second, "HTTP timeout")
 	fs.BoolVar(&g.traceHTTP, "trace-http", false, "log every HTTP request to stderr (no secrets)")
@@ -269,6 +271,7 @@ type command struct {
 func topLevelCommands() []command {
 	return []command{
 		{"commands", "print the command catalog for agents", runCommands},
+		{"doctor", "verify token and API connectivity without writes", runDoctor},
 		{"auth", "manage credentials (login, import-mac, refresh, set-token, status)", runAuth},
 		{"frames", "list / inspect / set-default frame", runFrames},
 		{"frame", "alias for frames", runFrames},
@@ -352,7 +355,18 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		_, _ = fmt.Fprintln(stderr, "choose only one of --json or --plain")
 		return exitUsage
 	}
+	if g.timeout <= 0 {
+		_, _ = fmt.Fprintln(stderr, "--timeout must be positive")
+		return exitUsage
+	}
 	rest := root.Args()
+	if g.showVersion {
+		if len(rest) > 0 || g.doctor {
+			_, _ = fmt.Fprintln(stderr, "--version cannot be combined with a command or --doctor")
+			return exitUsage
+		}
+		rest = []string{"version"}
+	}
 	if g.doctor {
 		if len(rest) > 0 {
 			if g.asJSON {
@@ -419,6 +433,11 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	if err := enforceSafety(g, rest); err != nil {
 		_, _ = fmt.Fprintln(stderr, "error:", err.Error())
 		return exitErr
+	}
+
+	if cmd == "version" {
+		rc := &runCtx{g: g, stdout: stdout, stderr: stderr, out: newPrinter(stdout, g.asJSON, g.plain)}
+		return rc.finishOutput(runVersion(rc, sub))
 	}
 
 	cfg, err := config.Load(g.configPath)
@@ -530,6 +549,7 @@ func printRootUsage(w io.Writer, root *flag.FlagSet) {
 
 var rootBoolFlags = map[string]bool{
 	"doctor":     true,
+	"version":    true,
 	"json":       true,
 	"plain":      true,
 	"readonly":   true,

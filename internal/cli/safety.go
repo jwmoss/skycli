@@ -18,6 +18,7 @@ var readOnlyCommands = map[string]bool{
 	"calendar sources":        true,
 	"calendar week":           true,
 	"commands":                true,
+	"doctor":                  true,
 	"categories":              true,
 	"category":                true,
 	"categories list":         true,

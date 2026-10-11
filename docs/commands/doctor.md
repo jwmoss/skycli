@@ -1,10 +1,11 @@
-# --doctor
+# doctor
 
 Runs readonly token and API connectivity checks.
 
 ## Usage
 
 ```bash
+skycli doctor
 skycli --doctor
 skycli --doctor --json
 skycli --readonly --doctor --json
@@ -16,4 +17,5 @@ Human mode prints the health-check summary. JSON mode emits one document with th
 
 ## Notes
 
-`--doctor` is a root flag, not a subcommand.
+`doctor` and the root `--doctor` flag run the same read-only checks.
+Refresh expired credentials explicitly before these checks.

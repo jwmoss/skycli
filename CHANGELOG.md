@@ -13,6 +13,8 @@ All notable changes to `skycli` will be documented in this file.
 
 ### Added
 
+- Add `--version` and `doctor` aliases for the common CLI contract.
+
 - Manage profiles and labels, including deletion with reassignment and profile hats through JSON fields.
 - Add task undo/unskip, ordering, linked profiles, due times, completion-based repeats, and routine habit controls.
 - Add calendar recurrence, invitations, multiple profiles, sync destinations, and source-calendar changes.
@@ -23,6 +25,9 @@ All notable changes to `skycli` will be documented in this file.
 - Record the October 2026 feature audit, shipped-app contracts, and remaining gaps.
 
 ### Fixed
+
+- Reject zero or negative HTTP timeouts before command execution.
+- Keep doctor checks read-only and allow version output without valid configuration.
 
 - Require Go 1.27.2 so CI and release builds include the current standard-library security fixes.
 - Match the shipped app's `2026-08-05` API version by default.
