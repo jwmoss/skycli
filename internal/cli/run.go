@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jwmoss/skycli/internal/config"
@@ -239,7 +240,10 @@ func (rc *runCtx) client() (*skylight.Client, error) {
 		skylight.WithAPIVersion(rc.cfg.APIVersion),
 	}
 	if rc.g.traceHTTP {
+		var traceMu sync.Mutex
 		opts = append(opts, skylight.WithTrace(func(method, url string, status int, d time.Duration) {
+			traceMu.Lock()
+			defer traceMu.Unlock()
 			_, _ = fmt.Fprintf(rc.stderr, "[http] %s %s -> %d (%s)\n", method, url, status, d)
 		}))
 	}

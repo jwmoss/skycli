@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/jwmoss/skycli/internal/skylight"
@@ -50,6 +53,62 @@ type countPair struct {
 	completed int
 }
 
+type reportResources struct {
+	frame      *skylight.Frame
+	chores     []skylight.Chore
+	events     *skylight.Collection[skylight.CalendarEvent]
+	categories []skylight.Category
+	points     []skylight.RewardPoint
+	rewards    []skylight.Reward
+}
+
+func reportRead[T any](name string, dst *T, read func() (T, error)) func() error {
+	return func() error {
+		value, err := read()
+		if err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+		*dst = value
+		return nil
+	}
+}
+
+// Each batch uses a single authenticated client. Check errors in command order.
+func readReport(ctx context.Context, c *skylight.Client, id int64, chores skylight.ChoreFilter, statusReport bool) (reportResources, error) {
+	var data reportResources
+	categories := reportRead("list categories", &data.categories, func() ([]skylight.Category, error) { return c.ListCategories(ctx, id) })
+	listChores := reportRead("list chores", &data.chores, func() ([]skylight.Chore, error) { return c.ListChores(ctx, id, chores) })
+	events := reportRead("list calendar events", &data.events, func() (*skylight.Collection[skylight.CalendarEvent], error) {
+		return c.ListCalendarEvents(ctx, id, skylight.CalendarEventFilter{StartDate: chores.After, EndDate: chores.Before})
+	})
+	points := reportRead("list reward points", &data.points, func() ([]skylight.RewardPoint, error) { return c.ListRewardPoints(ctx, id) })
+	var reads []func() error
+	if statusReport {
+		frame := reportRead("get frame", &data.frame, func() (*skylight.Frame, error) { return c.GetFrame(ctx, id) })
+		reads = []func() error{frame, listChores, events, categories, points}
+	} else {
+		rewards := reportRead("list rewards", &data.rewards, func() ([]skylight.Reward, error) { return c.ListRewards(ctx, id) })
+		reads = []func() error{categories, listChores, rewards, points, events}
+	}
+	for batch := range slices.Chunk(reads, 3) {
+		if err := ctx.Err(); err != nil {
+			return data, err
+		}
+		errs := make([]error, len(batch))
+		var wg sync.WaitGroup
+		for i, read := range batch {
+			wg.Go(func() { errs[i] = read() })
+		}
+		wg.Wait()
+		for _, err := range errs {
+			if err != nil {
+				return data, err
+			}
+		}
+	}
+	return data, nil
+}
+
 func runStatus(rc *runCtx, args []string) int {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	fs.SetOutput(rc.stderr)
@@ -66,36 +125,13 @@ func runStatus(rc *runCtx, args []string) int {
 		return fail(rc, err)
 	}
 	todayDate := today()
-	frame, err := c.GetFrame(rc.ctx, frameID)
+	data, err := readReport(rc.ctx, c, frameID, skylight.ChoreFilter{Date: todayDate, After: todayDate, Before: todayDate, Status: "pending", IncludeLate: true, IncludeUpForGrabs: true}, true)
 	if err != nil {
-		return fail(rc, fmt.Errorf("get frame: %w", err))
+		return fail(rc, err)
 	}
-	chores, err := c.ListChores(rc.ctx, frameID, skylight.ChoreFilter{
-		Date:              todayDate,
-		After:             todayDate,
-		Before:            todayDate,
-		Status:            "pending",
-		IncludeLate:       true,
-		IncludeUpForGrabs: true,
-	})
-	if err != nil {
-		return fail(rc, fmt.Errorf("list chores: %w", err))
-	}
-	events, err := fetchCalendarEvents(rc, frameID, todayDate, todayDate)
-	if err != nil {
-		return fail(rc, fmt.Errorf("list calendar events: %w", err))
-	}
-	categories, err := c.ListCategories(rc.ctx, frameID)
-	if err != nil {
-		return fail(rc, fmt.Errorf("list categories: %w", err))
-	}
-	points, err := c.ListRewardPoints(rc.ctx, frameID)
-	if err != nil {
-		return fail(rc, fmt.Errorf("list reward points: %w", err))
-	}
-	catNames := categoryNameMap(categories)
-	pointRows := make([]map[string]any, 0, len(points))
-	for _, p := range points {
+	catNames := categoryNameMap(data.categories)
+	pointRows := make([]map[string]any, 0, len(data.points))
+	for _, p := range data.points {
 		key := strconv.FormatInt(p.CategoryID, 10)
 		name := catNames[key]
 		if name == "" {
@@ -110,16 +146,16 @@ func runStatus(rc *runCtx, args []string) int {
 	}
 	if rc.g.asJSON {
 		_ = rc.out.JSON(map[string]any{
-			"frame":          frame,
-			"pending_chores": len(chores),
-			"events_today":   len(events),
+			"frame":          data.frame,
+			"pending_chores": len(data.chores),
+			"events_today":   len(data.events.Data),
 			"points":         pointRows,
 		})
 		return exitOK
 	}
-	rc.out.Line("Frame:   %s", frame.Attributes.Name)
-	rc.out.Line("Chores:  %d pending today", len(chores))
-	rc.out.Line("Events:  %d today", len(events))
+	rc.out.Line("Frame:   %s", data.frame.Attributes.Name)
+	rc.out.Line("Chores:  %d pending today", len(data.chores))
+	rc.out.Line("Events:  %d today", len(data.events.Data))
 	for _, row := range pointRows {
 		rc.out.Line("Points:  %s: %d", row["name"], row["balance"])
 	}
@@ -149,27 +185,11 @@ func runAnalytics(rc *runCtx, args []string) int {
 	start := now.AddDate(0, 0, -*days)
 	startStr := start.Format(dateLayout)
 	endStr := now.Format(dateLayout)
-	categories, err := c.ListCategories(rc.ctx, frameID)
+	data, err := readReport(rc.ctx, c, frameID, skylight.ChoreFilter{After: startStr, Before: endStr, IncludeLate: true, IncludeUpForGrabs: true}, false)
 	if err != nil {
-		return fail(rc, fmt.Errorf("list categories: %w", err))
+		return fail(rc, err)
 	}
-	chores, err := c.ListChores(rc.ctx, frameID, skylight.ChoreFilter{After: startStr, Before: endStr, IncludeLate: true, IncludeUpForGrabs: true})
-	if err != nil {
-		return fail(rc, fmt.Errorf("list chores: %w", err))
-	}
-	rewards, err := c.ListRewards(rc.ctx, frameID)
-	if err != nil {
-		return fail(rc, fmt.Errorf("list rewards: %w", err))
-	}
-	points, err := c.ListRewardPoints(rc.ctx, frameID)
-	if err != nil {
-		return fail(rc, fmt.Errorf("list reward points: %w", err))
-	}
-	events, err := fetchCalendarEvents(rc, frameID, startStr, endStr)
-	if err != nil {
-		return fail(rc, fmt.Errorf("list calendar events: %w", err))
-	}
-	stats := computeAnalyticsStats(chores, rewards, points, events, categoryNameMap(categories), start, now)
+	stats := computeAnalyticsStats(data.chores, data.rewards, data.points, data.events.Data, categoryNameMap(data.categories), start, now)
 	if rc.g.asJSON {
 		_ = rc.out.JSON(stats)
 		return exitOK
@@ -240,6 +260,9 @@ func computeAnalyticsStats(
 		})
 	}
 	sort.Slice(assignees, func(i, j int) bool {
+		if assignees[i].Name == assignees[j].Name {
+			return assignees[i].CategoryID < assignees[j].CategoryID
+		}
 		return assignees[i].Name < assignees[j].Name
 	})
 
@@ -248,6 +271,9 @@ func computeAnalyticsStats(
 		top = append(top, analyticsChoreStat{Title: title, Count: c.total, Completed: c.completed})
 	}
 	sort.Slice(top, func(i, j int) bool {
+		if top[i].Count == top[j].Count {
+			return top[i].Title < top[j].Title
+		}
 		return top[i].Count > top[j].Count
 	})
 	if len(top) > 5 {
