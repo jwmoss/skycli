@@ -4,7 +4,9 @@ All notable changes to `skycli` will be documented in this file.
 
 ## Unreleased
 
-- Fetch status and analytics data in batches of up to three concurrent reads. Sort tied analytics results consistently.
+## [0.3.1] - 2026-11-17
+
+- Read status and analytics resources in batches of up to three requests. Sort tied analytics results consistently.
 
 ## [0.3.0] - 2026-10-10
 
