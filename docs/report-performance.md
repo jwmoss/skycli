@@ -1,9 +1,10 @@
-# Reduce status and analytics latency
+# Status and analytics report reads
 
-A read-only `status` invocation on November 17, 2026 returned five successful GET responses. The five requests took 211, 120, 62, 72, and 201 ms in one trace. The requests run in sequence.
+Both reports resolve their frame and credentials once. They reuse one authenticated client for five GET requests in batches of up to three. Each request uses the command context. Errors retain their resource labels and follow the original command order. Analytics resolves count ties by title and name ties by category ID.
 
-`runStatus` reads the frame, chores, calendar, categories, and point balances. The categories and balances only depend on one another during output assembly. `runAnalytics` also waits for five resource reads before building its report.
+Five alternating live runs per binary and command produced these median command times. Each run returned five successful GET responses. The status JSON matched. Analytics counts, balances, dates, and reward totals matched. Repeated runs also returned the same ranked output on the new binary.
 
-- [ ] Resolve the frame and credentials once before starting parallel work. Keep refresh and secret storage outside the workers.
-- [ ] Compare a small concurrency limit with the sequential baseline. Capture command duration, request count, and rate-limit responses.
-- [ ] Preserve JSON ordering, cancellation, and resource-specific errors. Exercise calendar and chore date boundaries on a real frame.
+| Command | Sequential | Batches of three |
+| --- | ---: | ---: |
+| `status` | 614 ms | 408 ms |
+| `analytics --days 7` | 689 ms | 422 ms |

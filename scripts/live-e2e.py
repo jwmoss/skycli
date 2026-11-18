@@ -72,6 +72,16 @@ def main():
             raise RuntimeError(f"{' '.join(command)} did not return a collection")
         print(f"PASS GET {' '.join(command)}", flush=True)
 
+    status = call("--readonly", "status")
+    analytics = call("--readonly", "analytics", "--days", "1")
+    if str(status["frame"]["id"]) != frame or not isinstance(status["points"], list):
+        raise RuntimeError("Status returned the wrong frame or invalid point balances")
+    if analytics["start_date"] != (today - timedelta(days=1)).isoformat() or analytics["end_date"] != today.isoformat():
+        raise RuntimeError("Analytics used the wrong date range")
+    if not isinstance(analytics["calendar"]["total_events"], int):
+        raise RuntimeError("Analytics returned an invalid event count")
+    print("PASS GET status and analytics", flush=True)
+
     if args.readonly:
         return
 

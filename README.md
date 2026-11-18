@@ -8,6 +8,7 @@ Unofficial. Not affiliated with Skylight. Use with accounts you own.
 rewards, calendar events, lists/grocery, meals, photos/albums, routines, bounties,
 rotations, device settings, notifications, nudges, month reviews, Sidekick imports/drafts,
 export/import, status, analytics, and watch.
+Status and analytics use up to three concurrent reads per frame.
 
 ## Docs
 
